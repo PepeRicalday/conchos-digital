@@ -7,6 +7,7 @@ import type { ModeloRedJcas, PuntoRedJcas } from './jcasModelo';
 import type { PronosticoCuenca } from '../hooks/useCuencaPronostico';
 import { avisosConfigClima, configClimaPorDefecto, cuentaPlanos, etiquetaAlcanceClima, validarConfigClima } from './informeClimaCuencaConfig';
 import { construirDatosClima } from './informeClimaCuencaDatos';
+import { construirRedUnifrut, type FilaEstacionUnifrut, type FilaLecturaUnifrut } from './unifrutModelo';
 import { ANCHO_PNG_CLIMA, MAX_PLANOS_LAMINA, MAX_PLANOS_PNG, folioClima, htmlInformeClimaCuenca, huellaClima, type FormatoInformeClima } from './informeClimaCuencaHtml';
 
 const c = interpretaContorno(JSON.parse(readFileSync('public/geo/cuenca_conchos.geojson', 'utf8'))) as ContornoCuenca;
@@ -237,5 +238,64 @@ describe('capas y distrito', () => {
   it('con capas el SVG de los planos lleva su leyenda; sin capas (config vacía) no', () => {
     expect(htmlInformeClimaCuenca(datos(), OPC('carta'))).toMatch(/límite municipal/);
     expect(htmlInformeClimaCuenca(datos({ ...configClimaPorDefecto(), capas: [] }), OPC('carta'))).not.toMatch(/límite municipal/);
+  });
+});
+
+describe('red regional Unifrut (fuera de la cuenca)', () => {
+  const lecs = (id: string, n: number, mm: number): FilaLecturaUnifrut[] => Array.from({ length: n }, (_, i) => ({
+    estacion_id: id, fecha: new Date(Date.parse('2026-11-07T00:00:00Z') - i * 86_400_000).toISOString().slice(0, 10), lluvia_mm: mm, tmax_c: 20, tmin_c: 3, tmed_c: 11, viento_kmh: 5, viento_max_kmh: 20, eto_mm: 2,
+  }));
+  const estU = (id: string, nombre: string, dist: number, ult = '2026-11-07'): FilaEstacionUnifrut => ({ id_unifrut: id, nombre, municipio: 'CUAUHTEMOC', tipo: 'CAMB', latitud: 28.4, longitud: -106.8, altitud_m: 2000, zona: 'fuera', dist_limite_km: dist, ult_fecha: ult });
+  const unif = () => construirRedUnifrut([estU('_a', 'Quinta Lupita', 7), estU('_b', 'Col. Álvaro Obregón', 17), estU('_c', 'Namiquipa Bajo', 85), estU('_d', 'Apagada', 5, '2026-09-01')],
+    [...lecs('_a', 40, 1), ...lecs('_b', 40, 2), ...lecs('_c', 40, 0.5)], '2026-11-08');
+  const conU = (cfg = configClimaPorDefecto(), u: ReturnType<typeof unif> | null = unif()) =>
+    construirDatosClima(cfg, { red: red(), contorno: c, dem, pron: pron(), hoy: '2026-11-08', ultSyncJcas: '2026-11-08T17:15:00Z', capasDatos: CAPAS, unifrut: u, ultSyncUnifrut: '2026-11-08T14:15:00Z' });
+
+  it('por defecto está activa; sin modelo (o sin estaciones que reporten) no hay página ni se inventa', () => {
+    expect(configClimaPorDefecto().regional).toBe(true);
+    expect(conU(configClimaPorDefecto(), null).regional).toBeNull();
+    expect(datos().regional).toBeNull();
+  });
+  it('lista solo las que reportan, con lluvia sumada de la ventana y el resumen de colindantes aparte', () => {
+    const r = conU().regional!;
+    expect(r.filas.map((f) => f.nombre)).toEqual(['Col. Álvaro Obregón', 'Quinta Lupita', 'Namiquipa Bajo']); // 'Apagada' no reporta
+    expect(r.filas[0].lluvia).toBe(60); // 30 d × 2 mm
+    expect(r.colindantes).toMatchObject({ n: 2, media: 45 }); // (30 + 60) / 2; Namiquipa Bajo (85 km) no es colindante
+  });
+  it('NO toca los planos ni la lluvia de la cuenca', () => {
+    const con = conU(), sin = conU(configClimaPorDefecto(), null);
+    expect(con.planos.map((p) => p.modelo.resumen)).toEqual(sin.planos.map((p) => p.modelo.resumen));
+    expect(con.lluviaObs).toEqual(sin.lluviaObs);
+    expect(con.estacionesObs.map((e) => e.nombre)).toEqual(sin.estacionesObs.map((e) => e.nombre));
+  });
+  it('«hoy» se sustituye por ayer y se declara', () => {
+    const r = conU({ ...configClimaPorDefecto(), diasObs: 'hoy' }).regional!;
+    expect(r.sustituyoHoy).toBe(true);
+    expect(r.ventana).toBe(1);
+    expect(htmlInformeClimaCuenca(conU({ ...configClimaPorDefecto(), diasObs: 'hoy' }), OPC('carta'))).toMatch(/ayer \(Unifrut no publica el día en curso\)/);
+  });
+  it('carta completa: una hoja más, rotulada contexto regional, fuera de la cuenca y sin NaN', () => {
+    const base = htmlInformeClimaCuenca(conU(configClimaPorDefecto(), null), OPC('carta'));
+    const h = htmlInformeClimaCuenca(conU(), OPC('carta'));
+    expect((h.match(/<section class="pagina"/g) ?? []).length).toBe((base.match(/<section class="pagina"/g) ?? []).length + 1);
+    expect(h).toMatch(/Red regional · Unifrut/);
+    expect(h).toMatch(/Unifrut · contexto regional/);
+    expect(h).toMatch(/fuera del contorno de la cuenca del Conchos/);
+    expect(h).toMatch(/no es la lluvia de la cuenca/);
+    expect(h).toMatch(/colindante · ≈ 7 km del límite/);
+    expect(h).toMatch(/Red regional Unifrut<\/th>|Red regional Unifrut/); // trazabilidad
+    expect(h).not.toMatch(/>(NaN|undefined|Infinity|null)</);
+    expect(base).not.toMatch(/Red regional/);
+  });
+  it('apagada la opción, o en infografía/PNG, no aparece', () => {
+    expect(conU({ ...configClimaPorDefecto(), regional: false }).regional).toBeNull();
+    expect(htmlInformeClimaCuenca(conU({ ...configClimaPorDefecto(), contenido: 'infografia' }), OPC('carta'))).not.toMatch(/Red regional · Unifrut/);
+    expect(htmlInformeClimaCuenca(conU(), OPC('png'))).not.toMatch(/Red regional · Unifrut/);
+  });
+  it('una sola colindante con dato → media S/D (nunca se promedia una sola)', () => {
+    const u = construirRedUnifrut([estU('_a', 'Quinta Lupita', 7), estU('_c', 'Namiquipa Bajo', 85)], [...lecs('_a', 40, 1), ...lecs('_c', 40, 0.5)], '2026-11-08');
+    const h = htmlInformeClimaCuenca(conU(configClimaPorDefecto(), u), OPC('carta'));
+    expect(conU(configClimaPorDefecto(), u).regional!.colindantes.media).toBeNull();
+    expect(h).toMatch(/Lluvia media de las colindantes: <b><span class="sd">S\/D<\/span><\/b>|Lluvia media de las colindantes: <b>S\/D<\/b>/);
   });
 });

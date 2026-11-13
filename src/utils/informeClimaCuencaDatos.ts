@@ -14,6 +14,7 @@ import type { VariablePlano } from './paletasClima';
 import { construirPlano, type PlanoModelo } from './planosCuenca';
 import { puntosObservados, puntosPronostico, type PuntoCuenca } from './planosDatos';
 import type { PronosticoCuenca } from '../hooks/useCuencaPronostico';
+import { resumenColindantes, ubicacionUnifrut, valorUnifrut, type ModeloUnifrut, type ResumenColindantes } from './unifrutModelo';
 
 export interface PlanoInforme { variable: VariablePlano; tipo: 'obs' | 'pron'; dias: VentanaObs | 3; modelo: PlanoModelo }
 
@@ -43,6 +44,28 @@ export interface DatosInformeClima {
   capasDatos: DatosCapas;
   /** Apartado del distrito: plano de lluvia sobre los 6 módulos con las estaciones propias + JCAS cercanas, y la tabla de las propias. */
   distrito: DatosDistrito | null;
+  /** Página de la red regional Unifrut (null = no incluida o sin estaciones que reporten). */
+  regional: DatosRegional | null;
+}
+
+/** Red regional Unifrut (fuera del contorno de la cuenca): contexto aparte, nunca entra a los planos ni al promedio de la cuenca. */
+export interface FilaRegional { nombre: string; municipio: string; ubicacion: string; colindante: boolean; lluvia: number | null; tmax: number | null; tmin: number | null; eto: number | null; viento: number | null; estado: string; ultFecha: string | null }
+export interface DatosRegional {
+  /** Ventana efectiva (Unifrut solo publica días completos: «hoy» se sustituye por «ayer»). */
+  ventana: VentanaObs; sustituyoHoy: boolean; fin: string;
+  filas: FilaRegional[]; colindantes: ResumenColindantes; vigentes: number; total: number; ultSync: string | null;
+}
+
+export function construirRegional(m: ModeloUnifrut | null | undefined, ventanaCfg: VentanaObs, ultSync: string | null): DatosRegional | null {
+  if (!m || m.puntos.filter((p) => p.estado === 'vigente' || p.estado === 'atrasada').length === 0) return null;
+  const sustituyoHoy = ventanaCfg === 'hoy', ventana: VentanaObs = sustituyoHoy ? 1 : ventanaCfg;
+  const filas = m.puntos.filter((p) => p.estado === 'vigente' || p.estado === 'atrasada').map((p): FilaRegional => ({
+    nombre: p.nombre, municipio: p.municipio.charAt(0) + p.municipio.slice(1).toLowerCase(), ubicacion: ubicacionUnifrut(p), colindante: p.colindante,
+    lluvia: valorUnifrut(p, 'lluvia', ventana, m.fin), tmax: valorUnifrut(p, 'tmax', ventana, m.fin), tmin: valorUnifrut(p, 'tmin', ventana, m.fin),
+    eto: valorUnifrut(p, 'eto', ventana, m.fin), viento: valorUnifrut(p, 'viento', ventana, m.fin),
+    estado: p.estado === 'vigente' ? 'Al día' : `Atrasada ${p.atrasoDias} d`, ultFecha: p.ultFecha,
+  })).sort((a, b) => (b.lluvia ?? -1) - (a.lluvia ?? -1) || a.nombre.localeCompare(b.nombre));
+  return { ventana, sustituyoHoy, fin: m.fin, filas, colindantes: resumenColindantes(m, ventana), vigentes: m.vigentes, total: m.total, ultSync };
 }
 
 export interface DatosDistrito {
@@ -86,7 +109,7 @@ const ESTADO: Record<string, string> = { vigente: 'Al día', atrasada: 'Atrasada
 
 export function construirDatosClima(
   config: ConfigInformeClima,
-  e: { red: ModeloRedJcas | null; contorno: ContornoCuenca; dem: DemGrid | null; pron: PronosticoCuenca | null; hoy: string; ultSyncJcas: string | null; capasDatos?: DatosCapas },
+  e: { red: ModeloRedJcas | null; contorno: ContornoCuenca; dem: DemGrid | null; pron: PronosticoCuenca | null; hoy: string; ultSyncJcas: string | null; capasDatos?: DatosCapas; unifrut?: ModeloUnifrut | null; ultSyncUnifrut?: string | null },
 ): DatosInformeClima {
   const planos: PlanoInforme[] = [];
   const variables = ORDEN_VARIABLES.filter((v) => config.variables.includes(v));
@@ -133,5 +156,6 @@ export function construirDatosClima(
     vigentes: e.red?.vigentes ?? 0, totalEstaciones: e.red?.total ?? 0, confiabilidad: resumenConfiabilidad(e.pron?.verificacion ?? []), corridaEn: e.pron?.corridaEn ?? null,
     estacionesObs, estacionesPron, excluidas: estacionesObs.filter((x) => x.excluida).map((x) => x.nombre), ultSyncJcas: e.ultSyncJcas,
     capasDatos: e.capasDatos ?? {}, distrito: config.distrito && config.observado ? construirDistrito(e.red, config.diasObs, e.hoy) : null,
+    regional: config.regional && config.observado ? construirRegional(e.unifrut, config.diasObs, e.ultSyncUnifrut ?? null) : null,
   };
 }

@@ -14,3 +14,9 @@
 .clima-cuenca-top { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 4px; }
 .clima-cuenca-top li { display: flex; justify-content: space-between; gap: 10px; font-size: 13px; padding: 4px 0; border-bottom: 1px solid color-mix(in srgb, var(--text-3) 18%, transparent); }
 .clima-cuenca-top em { font-style: normal; opacity: 0.7; }
+.clima-cuenca-filtros { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
+.clima-cuenca-seg { flex-wrap: wrap; }
+.clima-cuenca-seg button:disabled { opacity: 0.45; cursor: not-allowed; }
+.clima-cuenca-lnk { display: inline-flex; align-items: center; gap: 4px; padding: 0; background: none; border: 0; color: var(--st-info); font: inherit; text-decoration: underline; cursor: pointer; min-height: 24px; }
+.clima-cuenca-lnk:focus-visible { outline: 2px solid var(--st-info); outline-offset: 2px; }
+@media (max-width: 760px) { .clima-cuenca-filtros { justify-content: flex-start; } .clima-cuenca-seg button { padding: 0 10px; } }

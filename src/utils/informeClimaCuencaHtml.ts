@@ -17,6 +17,7 @@ import { cuandoVentana, etiquetaVentana } from './jcasModelo';
 import { planoSvg } from './planosCuenca';
 import { VARIABLES_PLANO } from './paletasClima';
 import type { DatosInformeClima, FrioFila, PlanoInforme } from './informeClimaCuencaDatos';
+import { COLINDANTE_KM, ROTULO_UNIFRUT } from './unifrutModelo';
 import { temporadaFrio } from './horasFrio';
 
 export type FormatoInformeClima = 'png' | 'lamina' | 'carta';
@@ -63,6 +64,22 @@ function bloqueDistrito(d: DatosInformeClima): string {
 <div class="distrito-grid"><figure class="plano distrito"><figcaption><b>${esc(x.plano.titulo)} · distrito</b><span>${resumen}</span></figcaption>${svg}<p class="fuente">Contorno: los 6 módulos de la SRL. Las estaciones propias (WeatherLink) se marcan con cuadrado; las JCAS cercanas, con círculo.</p></figure>
 <div><table class="cifras"><thead><tr><th>Estación propia</th><th class="n">Hoy (parcial, mm)</th><th class="n">Ayer (mm)</th><th class="n">7 d (mm)</th><th class="n">Mes actual (${esc(x.etiquetaMes)}, mm)</th></tr></thead><tbody>${filas || `<tr><td colspan="5">${SD}</td></tr>`}</tbody></table>
 <p class="leyenda">El valor del día es la última lectura del contador de lluvia de cada estación (día local). «Mes actual» suma los días completos desde el 1.º más el parcial de hoy; el mapa de arriba sigue en ${esc(cuandoVentana(x.ventana))}. Una estación sin lectura es S/D, nunca 0. Esta tabla muestra la lluvia; la temperatura, la humedad y el viento de las propias entran a los planos y a la tabla de estaciones (un sensor no confiable es S/D).</p></div></div></section>`;
+}
+
+/** Red regional Unifrut: estaciones FUERA del contorno, como contexto aparte (tabla y resumen de colindantes); nunca entran a los planos ni al promedio. Solo PDF carta completo. */
+function bloqueRegional(d: DatosInformeClima): string {
+  const x = d.regional;
+  if (!x) return '';
+  const col = x.colindantes;
+  const resumen = col.media == null
+    ? `Lluvia media de las colindantes: <b>S/D</b> (se necesitan al menos 2 con dato; hay ${col.n})`
+    : `Lluvia media de las ${col.n} colindantes: <b>${num(col.media)} mm</b> · rango ${numTxt(col.min, 1)}–${numTxt(col.max, 1)} mm · media simple, <b>no es la lluvia de la cuenca</b>`;
+  const filas = x.filas.map((f) => `<tr><th scope="row">${esc(f.nombre)}<br><small>${esc(f.municipio)} · ${esc(f.ubicacion)}</small></th><td class="n"><b>${num(f.lluvia)}</b></td><td class="n">${num(f.tmax)}</td><td class="n">${celdaTmin(f.tmin)}</td><td class="n">${num(f.eto)}</td><td class="n">${num(f.viento, 1)}</td><td>${esc(f.estado)}</td><td class="n">${esc(fechaCorta(f.ultFecha))}</td></tr>`).join('');
+  const cuando = x.sustituyoHoy ? 'ayer (Unifrut no publica el día en curso)' : cuandoVentana(x.ventana);
+  return `<section class="bloque"><h2>Red regional · Unifrut <small>${esc(ROTULO_UNIFRUT)} · ${esc(cuando)}</small></h2>
+<p class="leyenda">${resumen}. ${x.vigentes} de ${x.total} estaciones de la red tienen dato de los últimos 3 días; se listan las que reportan.</p>
+<table class="cifras"><thead><tr><th>Estación</th><th class="n">Lluvia (mm)</th><th class="n">T máx (°C)</th><th class="n">T mín (°C)</th><th class="n">ETo (mm)</th><th class="n">Viento (km/h)</th><th>Estado</th><th class="n">Último día</th></tr></thead><tbody>${filas}</tbody></table>
+<p class="leyenda">Las estaciones de la Unión Agrícola Regional de Fruticultores del Estado de Chihuahua (Cuauhtémoc, Namiquipa, Guerrero) quedan <b>fuera del contorno de la cuenca del Conchos</b>: no entran a los planos, a las isoyetas ni al promedio de la cuenca. «Colindantes» son las que están a ${COLINDANTE_KM} km o menos del límite. Solo días completos; lluvia y ETo se suman, T máx y T mín son los extremos del periodo y el viento es la media diaria. Sin dato suficiente (menos del 80 % de los días) es S/D, nunca 0. Se descartan valores físicamente imposibles y los anemómetros sin señal. Fuente autorizada por Unifrut A.C., dato provisional; última sincronización ${x.ultSync ? esc(fechaHoraLegible(new Date(x.ultSync))) : 'S/D'}.</p></section>`;
 }
 
 function kpis(d: DatosInformeClima): string {
@@ -158,8 +175,9 @@ function filasTrazabilidad(d: DatosInformeClima, ahora: Date): { k: string; v: s
     { k: 'Alcance', v: d.alcance },
     { k: 'Estaciones observadas', v: `${d.vigentes} de ${d.totalEstaciones} con dato reciente (JCAS/UACJ)` },
     { k: 'Última sincronización JCAS', v: d.ultSyncJcas ? fechaHoraLegible(new Date(d.ultSyncJcas)) : 'S/D' },
+    ...(d.regional ? [{ k: 'Red regional Unifrut', v: `${d.regional.vigentes} de ${d.regional.total} estaciones con dato reciente (contexto, fuera de la cuenca) · sincronizada ${d.regional.ultSync ? fechaHoraLegible(new Date(d.regional.ultSync)) : 'S/D'}` }] : []),
     { k: 'Corrida del pronóstico', v: d.corridaEn ? fechaHoraLegible(new Date(d.corridaEn)) : 'S/D' },
-    { k: 'Fuentes', v: 'JCAS/UACJ (observado), Open-Meteo con ECMWF, GFS e ICON (pronóstico), estaciones propias WeatherLink; contorno INEGI-CONAGUA vía CONABIO' },
+    { k: 'Fuentes', v: `JCAS/UACJ (observado), Open-Meteo con ECMWF, GFS e ICON (pronóstico), estaciones propias WeatherLink${d.regional ? ', red regional de Unifrut A.C. (contexto fuera de la cuenca)' : ''}; contorno INEGI-CONAGUA vía CONABIO` },
     { k: 'Método', v: 'IDW p = 2 con vecindad de 90 km, máscara de cobertura, una estación por ciudad, mediana de modelos' },
     { k: 'Huella de la configuración', v: huellaClima(d) },
     { k: 'Clasificación', v: 'Dato provisional · contexto, no sustituye a las estaciones propias ni a los aforos' },
@@ -310,9 +328,10 @@ function carta(d: DatosInformeClima, o: OpcionesHtmlClima): string {
   const conTablas = d.config.estaciones && !info;
   const paginasTabla = conTablas ? (d.config.observado ? 1 : 0) + (d.config.pronostico ? 1 : 0) : 0;
   const conDistrito = !!d.distrito;
+  const conRegional = !!d.regional && !info;
   const conRanking = info && d.config.observado;
   // Modo infografía: sin tablas ni anexo metodológico/trazabilidad/firmas; el mínimo institucional va al pie de la última hoja.
-  const total = grupos.length + (conDistrito ? 1 : 0) + paginasTabla + (conRanking ? 1 : 0) + (info ? 0 : 1);
+  const total = grupos.length + (conDistrito ? 1 : 0) + (conRegional ? 1 : 0) + paginasTabla + (conRanking ? 1 : 0) + (info ? 0 : 1);
   let n = 0;
   const hoja = (cuerpo: string, cabecera: string) => `<section class="pagina">${cabecera}<div class="cuerpo">${cuerpo}</div>${pieInforme(`Folio ${folioClima(d, o.emitido)}`, ++n, total)}</section>`;
   grupos.forEach((g, k) => {
@@ -325,6 +344,7 @@ function carta(d: DatosInformeClima, o: OpcionesHtmlClima): string {
   });
   if (conDistrito) hojas.push(hoja(`${bloqueDistrito(d)}${info && !conRanking ? lineaInstitucional(d) : ''}`, membrete(o, d)));
   if (conTablas && d.config.observado) hojas.push(hoja(tablaObs(d), membrete(o, d)));
+  if (conRegional) hojas.push(hoja(bloqueRegional(d), membrete(o, d)));
   if (conTablas && d.config.pronostico) hojas.push(hoja(tablaPron(d), membrete(o, d)));
   if (info) {
     if (conRanking) hojas.push(hoja(`<div style="--rkcols:1">${ranking(d, 24)}</div>${lineaInstitucional(d)}`, membrete(o, d)));

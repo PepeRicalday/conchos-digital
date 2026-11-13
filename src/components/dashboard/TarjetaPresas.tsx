@@ -8,6 +8,8 @@ import { estadoPresas } from '../../utils/dashboardKpisEjecutivos';
 import TanquesMini from './TanquesMini';
 import type { ModeloKpis } from './PanelKpis';
 import { useJcasCuenca } from '../../hooks/useJcasCuenca';
+import { useUnifrutCuenca } from '../../hooks/useUnifrutCuenca';
+import { construirEstacionesClima, resumenPorRed, ROTULO_RED, type FuenteEstacion } from '../../utils/estacionesClima';
 
 export type VistaPresas = 'distrito' | 'cuenca';
 const CLAVE = 'sica.dashboard.presas.vista';
@@ -18,6 +20,9 @@ function leerVista(): VistaPresas {
 }
 
 const f = (v: number | null | undefined, d = 1) => (v == null ? null : v.toFixed(d));
+/** Las tres redes con la forma del mapa (la forma, no solo el color, las distingue): ■ Distrito · ● JCAS · ⬢ Unifrut. */
+const REDES: FuenteEstacion[] = ['propia', 'jcas', 'unifrut'];
+const GLIFO_RED: Record<FuenteEstacion, string> = { propia: '■', jcas: '●', unifrut: '⬢' };
 
 /**
  * Tarjeta Presas con dos vistas en la misma celda: Distrito (Boquilla y Madero, con su serie de 7 días) y Cuenca (las 7 presas
@@ -37,6 +42,11 @@ export const TarjetaPresas = memo(function TarjetaPresas({ m }: { m: ModeloKpis 
     // sospechosos (0 mm continuo con vecinas lloviendo) necesita esa ventana; con menos, el Dashboard y Red y estaciones podrían divergir.
     const { red: redJcas } = useJcasCuenca(30 * 60_000, { activo: vista === 'cuenca', dias: 30 });
     const arealHoy = redJcas?.modelo?.arealHoy ?? null, arealAyer = redJcas?.modelo?.areal1 ?? null;
+    // Las tres redes de estaciones, IDENTIFICADAS: Distrito (propias WeatherLink), JCAS y Unifrut (regional, FUERA de la cuenca). Carga ligera de Unifrut
+    // (10 días) y solo en la vista Cuenca. Lluvia de AYER (día completo: Unifrut no publica el día en curso) como media simple por red; NUNCA es la lluvia
+    // areal de la cuenca («cuenca hoy»), que sigue siendo solo de JCAS y las del Distrito.
+    const { modelo: modUnifrut } = useUnifrutCuenca(60 * 60_000, { activo: vista === 'cuenca', dias: 10 });
+    const redesAyer = useMemo(() => (redJcas?.modelo ? resumenPorRed(construirEstacionesClima(redJcas.modelo, modUnifrut), 'lluvia', 1) : null), [redJcas, modUnifrut]);
 
     const itemsCuenca: ColumnaEmbalse[] = useMemo(() => (r?.presas ?? []).map((p) => ({
         nombre: p.etiqueta, pct: p.pct, capacidadMm3: p.namoMm3 ?? 0, alerta: false, sinActualizar: p.sinActualizar,
@@ -57,14 +67,24 @@ export const TarjetaPresas = memo(function TarjetaPresas({ m }: { m: ModeloKpis 
             <KpiTile id="kp-presas" to="/presas?tab=analitica&vista=cuenca" enlaceTexto="Abrir Cuenca" titulo="Cuenca" icono={<Layers size={18} />} valor={f(r?.pct)} unidad="%" estado={estado}
                 aria={`Presas de la cuenca del Conchos: almacenamiento ${f(r?.pct) ?? 'sin dato'} por ciento, ${estado.texto}. Abrir Cuenca en Presas, Analítica y forecasting`}
                 acciones={selector}
-                viz={<div className="kp-presas-viz kp-presas-viz-cuenca">
-                    {r ? <ColumnasEmbalse items={itemsCuenca} /> : <div className="kp-banda kp-banda-sd" role="status">{cuenca?.cargado === false ? 'Cargando cuenca…' : 'Cuenca sin lectura'}</div>}
+                viz={<div className="kp-presas-viz-col">
+                    <div className="kp-presas-viz kp-presas-viz-cuenca">
+                        {r ? <ColumnasEmbalse items={itemsCuenca} /> : <div className="kp-banda kp-banda-sd" role="status">{cuenca?.cargado === false ? 'Cargando cuenca…' : 'Cuenca sin lectura'}</div>}
+                    </div>
+                    {redesAyer && (
+                        <div className="kp-redes" role="group" aria-label="Lluvia de ayer por red de estaciones"
+                            title={REDES.map((f) => `${ROTULO_RED[f]}: ${redesAyer[f].alDia} estaciones al día${redesAyer[f].media != null ? `, media simple de ${redesAyer[f].conDato} con lluvia de ayer` : ', sin media de ayer (S/D)'}`).join(' · ') + '. Media simple por red, NO es la lluvia areal de la cuenca. Unifrut está fuera de la cuenca (contexto regional).'}>
+                            <span className="kp-redes-t">lluvia ayer</span>
+                            {REDES.map((f) => <span key={f} className={`kp-red kp-red--${f}`}><span aria-hidden="true">{GLIFO_RED[f]}</span> {ROTULO_RED[f]} <b>{redesAyer[f].media != null ? `${redesAyer[f].media!.toFixed(1)} mm` : 'S/D'}</b><span className="kp-red-n"> ({redesAyer[f].alDia})</span></span>)}
+                        </div>
+                    )}
                 </div>}
                 contexto={r
                     ? <><b>{r.almacenadoMm3 != null ? `${r.almacenadoMm3.toFixed(0)} / ${namoCuenca.toFixed(0)} Mm³` : 'S/D'}</b>
                         {r.conDato < r.total ? ` (${r.conDato}/${r.total} presas)` : ` · ${r.total} presas`}
                         <span className="kp-sep"> · </span><span className="kp-nw" title="Promedio simple de 7 días de los pluviómetros de las presas (CONAGUA vía USIBWC). No es el promedio areal de la cuenca de la cifra siguiente.">presas 7 d <b>{r.lluvia.promedio7Mm != null ? `${r.lluvia.promedio7Mm.toFixed(1)} mm` : 'S/D'}</b></span>
-                        <span className="kp-sep"> · </span><span className="kp-nw" title="Lluvia areal estimada de la cuenca (interpolación con las estaciones JCAS/UACJ y las propias WeatherLink); hoy es parcial (día en curso)">cuenca hoy <b>{arealHoy?.mm != null ? `${arealHoy.mm.toFixed(1)} mm` : 'S/D'}</b>{arealAyer?.mm != null ? <> · ayer <b>{arealAyer.mm.toFixed(1)} mm</b></> : null}</span>
+                        <span className="kp-sep"> · </span><span className="kp-nw" title="Lluvia areal estimada de la cuenca (interpolación con las estaciones JCAS/UACJ y las del Distrito, WeatherLink; Unifrut NO entra); hoy es parcial (día en curso)">cuenca hoy <b>{arealHoy?.mm != null ? `${arealHoy.mm.toFixed(1)} mm` : 'S/D'}</b>{arealAyer?.mm != null ? <> · ayer <b>{arealAyer.mm.toFixed(1)} mm</b></> : null} <em className="kp-red-de">(JCAS + Distrito)</em></span>
+                        {redesAyer ? <><span className="kp-sep"> · </span><span className="kp-nw kp-red kp-red--unifrut" title={`Unifrut A.C. (regional, FUERA de la cuenca): media simple de ${redesAyer.unifrut.conDato} de sus ${redesAyer.unifrut.alDia} estaciones al día con lluvia de ayer. NO es la lluvia de la cuenca; Unifrut solo publica días completos.`}><span aria-hidden="true">{GLIFO_RED.unifrut}</span> Unifrut ayer <b>{redesAyer.unifrut.media != null ? `${redesAyer.unifrut.media.toFixed(1)} mm` : 'S/D'}</b></span></> : null}
                         {r.sinActualizar > 0 ? <span className="kp-nw"> · {r.sinActualizar} sin actualizar (trama)</span> : null}</>
                     : <>Contexto CONAGUA vía USIBWC: sin lectura</>}
                 fresco={r?.frescura ? `${r.frescura.texto} · dato provisional` : 'Sin lectura (S/D)'} stale={!!r?.frescura?.stale} />

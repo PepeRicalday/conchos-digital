@@ -35,6 +35,8 @@ export interface ConfigInformeClima {
   capas: CapaId[];
   /** Apartado del distrito (módulos SRL con las estaciones propias) en el PDF carta. */
   distrito: boolean;
+  /** Página «Red regional Unifrut» (estaciones de Unifrut A.C., FUERA de la cuenca): solo en el PDF carta completo y solo si la red tiene datos. */
+  regional: boolean;
   /**
    * 'completo': informe con tablas, «Cómo se lee», trazabilidad y firmas. 'infografia': solo lo gráfico (planos, KPIs y barras por estación) con el
    * mínimo institucional (logos, corte, fuente, «provisional», atribución del contorno y folio); sin notas metodológicas, trazabilidad ni firmas.
@@ -43,7 +45,7 @@ export interface ConfigInformeClima {
 }
 
 export function configClimaPorDefecto(): ConfigInformeClima {
-  return { variables: [...VARIABLES_POR_DEFECTO], observado: true, pronostico: true, diasObs: 30, diasPron: 7, estaciones: true, capas: [...CAPAS_INFORME], distrito: true, contenido: 'completo' };
+  return { variables: [...VARIABLES_POR_DEFECTO], observado: true, pronostico: true, diasObs: 30, diasPron: 7, estaciones: true, capas: [...CAPAS_INFORME], distrito: true, regional: true, contenido: 'completo' };
 }
 
 /** Errores que BLOQUEAN la generación. */

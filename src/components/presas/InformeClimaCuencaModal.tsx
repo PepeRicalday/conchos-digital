@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { ArrowLeft, Eye, ImageDown, Printer, X } from 'lucide-react';
 import { useModalA11y } from '../historico/useModalA11y';
 import type { RedJcas } from '../../hooks/useJcasCuenca';
+import type { ModeloUnifrut } from '../../utils/unifrutModelo';
 import type { PronosticoCuenca } from '../../hooks/useCuencaPronostico';
 import type { DemGrid } from '../../utils/camposCuenca';
 import { resumenConfiabilidad } from '../../utils/cuencaPronostico';
@@ -25,7 +26,7 @@ import { nombreArchivoConPartes } from '../../utils/informeBase';
 import '../ndvi/informeNdviModal.css';
 import { hoyLocalISO } from '../../utils/hoyLocal';
 
-interface Props { red: RedJcas | null; pron: PronosticoCuenca | null; dem: DemGrid | null; onCerrar: () => void }
+interface Props { red: RedJcas | null; pron: PronosticoCuenca | null; dem: DemGrid | null; unifrut?: ModeloUnifrut | null; ultSyncUnifrut?: string | null; onCerrar: () => void }
 
 const alternar = <T,>(l: T[], x: T) => (l.includes(x) ? l.filter((y) => y !== x) : [...l, x]);
 const FORMATOS: { id: FormatoInformeClima; et: string; ayuda: string }[] = [
@@ -37,7 +38,7 @@ const ANCHO_FORMATO: Record<FormatoInformeClima, number> = { carta: 816, png: AN
 const hoyLocal = () => hoyLocalISO();
 
 /** Ventana "Informe de clima y pronóstico de la cuenca": filtros (variables, observado/pronóstico, periodos) → vista previa → PNG / PDF / lámina. */
-export default function InformeClimaCuencaModal({ red, pron, dem, onCerrar }: Props) {
+export default function InformeClimaCuencaModal({ red, pron, dem, unifrut = null, ultSyncUnifrut = null, onCerrar }: Props) {
     const dialogRef = useRef<HTMLDivElement>(null);
     const frameRef = useRef<HTMLIFrameElement>(null);
     const marcoRef = useRef<HTMLDivElement>(null);
@@ -64,7 +65,7 @@ export default function InformeClimaCuencaModal({ red, pron, dem, onCerrar }: Pr
     }), [c, pron, red]);
     const nPlanos = cuentaPlanos(c);
 
-    const informe = useMemo(() => (emitido && red?.contorno ? construirDatosClima(c, { red: red.modelo, contorno: red.contorno, dem, pron, hoy, ultSyncJcas: red.ultSyncEn, capasDatos }) : null), [emitido, c, red, dem, pron, hoy, capasDatos]);
+    const informe = useMemo(() => (emitido && red?.contorno ? construirDatosClima(c, { red: red.modelo, contorno: red.contorno, dem, pron, hoy, ultSyncJcas: red.ultSyncEn, capasDatos, unifrut, ultSyncUnifrut }) : null), [emitido, c, red, dem, pron, hoy, capasDatos, unifrut, ultSyncUnifrut]);
     const html = useMemo(() => (informe && emitido && logos ? htmlInformeClimaCuenca(informe, { formato, logoSrl: logos.srl, logoSica: logos.sica, emitido }) : null), [informe, emitido, logos, formato]);
     const htmlPrevia = useMemo(() => {
         if (!html) return null;
@@ -198,6 +199,7 @@ export default function InformeClimaCuencaModal({ red, pron, dem, onCerrar }: Pr
                             </section>
                             <section className="ndvi-cfg-bloque" aria-label="Distrito">
                                 <label className="ndvi-cfg-check" title="Plano de lluvia sobre los 6 módulos con las estaciones propias; solo en el PDF carta"><input type="checkbox" checked={c.distrito} onChange={() => set({ distrito: !c.distrito })} /><span className="ndvi-cfg-etq">Apartado del distrito (módulos SRL con sus estaciones propias)</span></label>
+                                <label className="ndvi-cfg-check" title="Página con las estaciones de Unifrut A.C. (fuera de la cuenca): lluvia, temperaturas, ETo y viento; no entra a los planos ni al promedio. Solo en el PDF carta completo"><input type="checkbox" checked={c.regional} disabled={!unifrut} onChange={() => set({ regional: !c.regional })} /><span className="ndvi-cfg-etq">Red regional Unifrut (contexto, fuera de la cuenca){unifrut ? '' : ' · sin datos'}</span></label>
                             </section>
                             <section className="ndvi-cfg-bloque" aria-label="Tabla de estaciones">
                                 <label className="ndvi-cfg-check" title={c.contenido === 'infografia' ? 'En «Solo infografía» las estaciones se muestran como barras, no como tabla' : undefined}><input type="checkbox" checked={c.estaciones && c.contenido !== 'infografia'} disabled={c.contenido === 'infografia'} onChange={() => set({ estaciones: !c.estaciones })} /><span className="ndvi-cfg-etq">Tabla de estaciones</span></label>

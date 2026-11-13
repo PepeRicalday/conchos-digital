@@ -1,8 +1,10 @@
 import { Kpi, DataTable } from '../../ui/base';
 import { useEffect, useMemo, useState } from 'react';
+import { Maximize2 } from 'lucide-react';
 import type { RedJcas } from '../../../hooks/useJcasCuenca';
 import { useCuencaPronostico } from '../../../hooks/useCuencaPronostico';
 import BotonInformeClimaCuenca from '../../BotonInformeClimaCuenca';
+import type { ModeloUnifrut } from '../../../utils/unifrutModelo';
 import { useDevice } from '../../../hooks/useDevice';
 import { cargarDemCuenca, type DemGrid, type PuntoCampo } from '../../../utils/camposCuenca';
 import { consensoPorPunto, resumenConfiabilidad, valorPronosticoPeriodo } from '../../../utils/cuencaPronostico';
@@ -45,7 +47,7 @@ const hace = (iso: string | null) => {
  * Planos de la cuenca del Conchos: isoyetas y planos de temperatura, viento y humedad, observados (red JCAS) o pronosticados (3 modelos en 24 puntos).
  * CONTEXTO provisional de fuente tercera. El dibujo es el mismo SVG que usa el informe (utils/planosCuenca): una sola definición.
  */
-export default function PlanosCuenca({ jcas, capas, diasObs: diasProp, onDias }: { jcas: { red: RedJcas | null; loading: boolean; error: string | null }; capas?: CapasCuenca; diasObs?: VentanaObs; onDias?: (v: VentanaObs) => void }) {
+export default function PlanosCuenca({ jcas, capas, diasObs: diasProp, onDias, unifrut, onMapaCompleto }: { jcas: { red: RedJcas | null; loading: boolean; error: string | null }; capas?: CapasCuenca; diasObs?: VentanaObs; onDias?: (v: VentanaObs) => void; unifrut?: { modelo: ModeloUnifrut | null; ultSyncEn: string | null }; onMapaCompleto?: () => void }) {
     const [variable, setVariableBase] = useState<VariablePlano>('lluvia');
     const [modo, setModo] = useState<Modo>('obs');
     // Las horas frío no se pronostican: al elegirlas se vuelve a lo observado.
@@ -108,7 +110,10 @@ export default function PlanosCuenca({ jcas, capas, diasObs: diasProp, onDias }:
                         {modo === 'obs' ? 'Lo observado por las estaciones JCAS/UACJ y, en lluvia, también las propias' : 'Pronóstico de 3 modelos (ECMWF, GFS e ICON) en 24 puntos de la cuenca'} · contexto provisional, no medición oficial.
                     </p>
                 </div>
-                <BotonInformeClimaCuenca red={jcas.red} pron={pron.datos} dem={dem} />
+                <div className="cu-planos-acc">
+                {onMapaCompleto && <button type="button" className="an-btn" onClick={onMapaCompleto} disabled={!jcas.red?.contorno} title="Mapa interactivo de clima a pantalla completa: estaciones propias, JCAS y Unifrut con filtros"><Maximize2 size={14} aria-hidden="true" /> Mapa interactivo</button>}
+                <BotonInformeClimaCuenca red={jcas.red} pron={pron.datos} dem={dem} unifrut={unifrut?.modelo ?? null} ultSyncUnifrut={unifrut?.ultSyncEn ?? null} />
+                </div>
             </div>
             <div className="cu-cq" id="cu-planos">
                 <div className="cu-pl-grid">

@@ -15,9 +15,11 @@ import DetallePresaCuenca from './DetallePresaCuenca';
 import PequenosMultiplos from './PequenosMultiplos';
 import TiraLluvia from './TiraLluvia';
 import RedEstacionesCuenca from './RedEstacionesCuenca';
+import MapaClimaCompleto from './MapaClimaCompleto';
 import MensualCuenca from './MensualCuenca';
 import PlanosCuenca from './PlanosCuenca';
 import { useJcasCuenca } from '../../../hooks/useJcasCuenca';
+import { useUnifrutCuenca } from '../../../hooks/useUnifrutCuenca';
 import { useCapasCuenca } from '../../../hooks/useCapasCuenca';
 import SemaforoBadge from './SemaforoBadge';
 import { GLIFO_ESTADO } from './TanquePresa';
@@ -143,11 +145,13 @@ export default function PanelCuencaConchos({ conInforme = false }: { conInforme?
     const { datos, loading, error, recargar } = useAqwpCuenca();
     const capas = useCapasCuenca(); // las mismas capas de referencia en los planos y en el mapa de la red
     const jcas = useJcasCuenca(); // una sola carga de la red JCAS para los planos y la tabla de estaciones
+    const unifrut = useUnifrutCuenca(); // red regional Unifrut (fuera del contorno): tabla y mapa; nunca entra al promedio de la cuenca
     // Catálogo de cuerpos de agua + cierres mensuales + balance + vasos: carga aparte, un fallo aquí no tira el resto de la vista.
     const cuerpos = useCuerposAgua();
     const [vista, setVista] = useState<Vista>('tanques');
     // Una sola ventana de lo observado para los planos y la red de estaciones (antes cada bloque tenía la suya y podían decir cosas distintas).
     const [ventanaObs, setVentanaObs] = useState<VentanaObs>(30);
+    const [mapaCompleto, setMapaCompleto] = useState(false); // mapa interactivo de clima a pantalla completa (propias, JCAS y Unifrut)
     const [orden, setOrden] = useState<OrdenCuenca>('cuenca');
     const [alcance, setAlcance] = useState<Alcance>('todas');
     const [meses, setMeses] = useState<3 | 12>(12);
@@ -421,8 +425,9 @@ export default function PanelCuencaConchos({ conInforme = false }: { conInforme?
 
             {pestana === 'clima' && (
                 <>
-                    <PlanosCuenca jcas={jcas} capas={capas} diasObs={ventanaObs} onDias={setVentanaObs} />
-                    <RedEstacionesCuenca jcas={jcas} capas={capas} ventana={ventanaObs} onVentana={setVentanaObs} />
+                    <PlanosCuenca jcas={jcas} capas={capas} diasObs={ventanaObs} onDias={setVentanaObs} unifrut={unifrut} onMapaCompleto={() => setMapaCompleto(true)} />
+                    <RedEstacionesCuenca jcas={jcas} unifrut={unifrut} capas={capas} ventana={ventanaObs} onVentana={setVentanaObs} onMapaCompleto={() => setMapaCompleto(true)} />
+                    {mapaCompleto && <MapaClimaCompleto jcas={jcas} unifrut={unifrut} capas={capas} ventanaInicial={ventanaObs} onCerrar={() => setMapaCompleto(false)} />}
                     <MensualCuenca jcas={jcas} />
                     <TiraLluvia lluvia={datos.lluvia} serie={datos.lluviaSerie} />
                 </>

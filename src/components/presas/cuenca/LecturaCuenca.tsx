@@ -7,12 +7,12 @@ const NOMBRE: Record<TonoLectura, string> = { ok: 'Normal', warn: 'Atención', c
  * «Qué mirar aquí»: los hallazgos de la pestaña en una frase cada uno, antes de las gráficas y tablas. El tono lleva glifo y
  * nombre (el color nunca va solo). `onIr` convierte cada hallazgo en un acceso a su pestaña (se usa en el Resumen).
  */
-export default function LecturaCuenca({ titulo = 'Qué mirar aquí', lecturas, onIr }: { titulo?: string; lecturas: (Lectura & { ir?: string; irTxt?: string })[]; onIr?: (pestana: string) => void }) {
+export default function LecturaCuenca({ titulo = 'Qué mirar aquí', lecturas, onIr, columnas = false }: { titulo?: string; lecturas: (Lectura & { ir?: string; irTxt?: string })[]; onIr?: (pestana: string) => void; columnas?: boolean }) {
   if (!lecturas.length) return null;
   return (
-    <section className="cu-lec" aria-label={titulo}>
+    <div className="cu-cq"><section className="cu-lec" aria-label={titulo}>
       <h4 className="cu-lec-t">{titulo}</h4>
-      <ul className="cu-lec-lista">
+      <ul className={columnas ? 'cu-lec-lista cu-lec-lista--cols' : 'cu-lec-lista'}>
         {lecturas.map((l, i) => (
           <li key={i} className={`cu-lec-item cu-lec-item--${l.tono}`}>
             <span className="cu-lec-glifo" aria-hidden="true">{GLIFO[l.tono]}</span>
@@ -24,6 +24,6 @@ export default function LecturaCuenca({ titulo = 'Qué mirar aquí', lecturas, o
           </li>
         ))}
       </ul>
-    </section>
+    </section></div>
   );
 }

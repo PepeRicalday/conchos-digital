@@ -44,6 +44,9 @@ const CierresMensualesCuenca = lazy(() => import('./CierresMensualesCuenca'));
 const BalanceVaso = lazy(() => import('./BalanceVaso'));
 const BalanceTramosRio = lazy(() => import('./BalanceTramosRio'));
 const AnotacionesCuenca = lazy(() => import('./AnotacionesCuenca'));
+const SalidaCiclosCuenca = lazy(() => import('./SalidaCiclosCuenca'));
+const FichaCuerpo = lazy(() => import('./FichaCuerpo'));
+const ComparadorCuenca = lazy(() => import('./ComparadorCuenca'));
 const cargando = <section className="an-card" role="status" aria-busy="true" aria-label="Cargando sección"><div className="an-skeleton an-skeleton--alta" /></section>;
 
 const fmt = (v: number | null, d = 1) => (v == null ? 'S/D' : formatearNumero(v, d));
@@ -65,7 +68,7 @@ const PESTANAS: { id: Pestana; t: string; ayuda: string }[] = [
     { id: 'clima', t: 'Clima', ayuda: 'Planos, estaciones y lluvia de la cuenca' },
 ];
 /** Sección que se abre al entrar a cada destino. Las pestañas de antes (Presas, Red, Vasos por satélite, Cierres) son hoy secciones. */
-type Seccion = 'presas' | 'satelite' | 'cuenca' | 'tramos' | 'cierres' | 'mensualVaso' | 'red' | 'anotaciones' | 'planos' | 'estaciones' | 'mensual' | 'pluviometros';
+type Seccion = 'presas' | 'satelite' | 'ficha' | 'comparador' | 'cuenca' | 'tramos' | 'ojinaga' | 'cierres' | 'mensualVaso' | 'red' | 'anotaciones' | 'planos' | 'estaciones' | 'mensual' | 'pluviometros';
 type Destino = 'presas' | 'vasos' | 'balance' | 'red' | 'clima';
 const DESTINOS: Record<Destino, { pestana: Pestana; seccion: Seccion }> = {
     presas: { pestana: 'vasos', seccion: 'presas' },
@@ -76,7 +79,7 @@ const DESTINOS: Record<Destino, { pestana: Pestana; seccion: Seccion }> = {
 };
 // Al entrar se ve abierta la primera sección de cada pestaña; las demás muestran su título y una línea de resumen.
 const SECCIONES_INICIO: Record<Seccion, boolean> = {
-    presas: true, satelite: false, cuenca: true, tramos: false, cierres: false, mensualVaso: false, red: false, anotaciones: false,
+    presas: true, satelite: false, ficha: false, comparador: false, cuenca: true, tramos: false, ojinaga: false, cierres: false, mensualVaso: false, red: false, anotaciones: false,
     planos: true, estaciones: false, mensual: false, pluviometros: false,
 };
 const CLAVE_PESTANA = 'sica.cuenca.pestana';
@@ -133,7 +136,7 @@ export default function PanelCuencaConchos({ conInforme = false }: { conInforme?
     const unifrut = useUnifrutCuenca(60 * 60_000, { activo: pestana === 'clima' });
     const salida = useSalidaCuenca();
     // Anotaciones (captura manual, cierres revisados): se piden donde se muestran, en Vasos (junto al vaso sin telemetría) y en Balance.
-    const anot = useAnotacionesCuenca(pestana === 'vasos' || (pestana === 'balance' && abiertas.anotaciones));
+    const anot = useAnotacionesCuenca((pestana === 'vasos' && (abiertas.ficha || abiertas.presas)) || (pestana === 'balance' && abiertas.anotaciones));
     const derivacionK0 = useDerivacionK0(pestana === 'balance' && abiertas.tramos); // la toma K-0 solo se pide al abrir el balance por tramo
     // Las estaciones hidrométricas se dibujan en el sinóptico (Resumen) y en su sección de Balance.
     const hidro = useHidrometriaCuenca(ventHidro, pestana === 'resumen' || (pestana === 'balance' && abiertas.red));
@@ -312,7 +315,7 @@ export default function PanelCuencaConchos({ conInforme = false }: { conInforme?
             {pestana === 'resumen' && (
                 <>
                     {avisoSinActualizar}
-                    <LecturaCuenca titulo="Lo más importante hoy" lecturas={lecResumen} onIr={(d) => irA(d as Destino)} />
+                    <LecturaCuenca columnas titulo="Lo más importante hoy" lecturas={lecResumen} onIr={(d) => irA(d as Destino)} />
                     {estadoCuerpos}
                     {sistema}
                     {cuerpos.datos && <BalanceCuenca compacto datos={cuerpos.datos} salida={salida.lecturas} hoyISO={hoyISO} onIr={() => irA('balance')} />}
@@ -336,6 +339,14 @@ export default function PanelCuencaConchos({ conInforme = false }: { conInforme?
                         <PresasCuenca modelos={calc.modelos} cila={calc.cila} vista={vista} onVista={setVista} sel={sel} onSel={setSel} />
                         {avisoSinTelemetria}
                     </SeccionCuenca>
+                    <SeccionCuenca id="ficha" titulo="Ficha por cuerpo de agua" abierta={abiertas.ficha} onAlternar={alternar}
+                        resumen="Nivel, cierre, fuentes, espejo y balance de un cuerpo, con su fecha y origen">
+                        {cuerpos.datos && <Suspense fallback={cargando}><FichaCuerpo datos={cuerpos.datos} hoy={hoyVasos} anotaciones={anot.filas ?? []} /></Suspense>}
+                    </SeccionCuenca>
+                    <SeccionCuenca id="comparador" titulo="Comparador de vasos y años" abierta={abiertas.comparador} onAlternar={alternar}
+                        resumen="% del NAMO de hasta 4 vasos, o un vaso año contra año">
+                        {cuerpos.datos && <Suspense fallback={cargando}><ComparadorCuenca datos={cuerpos.datos} /></Suspense>}
+                    </SeccionCuenca>
                     <SeccionCuenca id="satelite" titulo="Espejo de agua por satélite" abierta={abiertas.satelite} onAlternar={alternar}
                         resumen={cuerpos.datos ? `${cuerpos.datos.cuerpos.length} cuerpos de agua · huella máxima y última escena` : 'Huella máxima y última escena de cada vaso'}>
                         {estadoCuerpos}
@@ -358,6 +369,10 @@ export default function PanelCuencaConchos({ conInforme = false }: { conInforme?
                     <SeccionCuenca id="tramos" titulo="Balance por tramo de río" abierta={abiertas.tramos} onAlternar={alternar}
                         resumen="Lo que sale de los vasos de arriba contra lo que llega abajo">
                         {cuerpos.datos && <Suspense fallback={cargando}><BalanceTramosRio datos={cuerpos.datos} ojinaga={salida.lecturas} k0={derivacionK0.lecturas} hoyISO={hoyISO} /></Suspense>}
+                    </SeccionCuenca>
+                    <SeccionCuenca id="ojinaga" titulo="Salida por Ojinaga por ciclo" abierta={abiertas.ojinaga} onAlternar={alternar}
+                        resumen="Volumen que dejó la cuenca en el ciclo en curso contra los anteriores, a igual fecha">
+                        <Suspense fallback={cargando}><SalidaCiclosCuenca salida={salida.lecturas} hoyISO={hoyISO} /></Suspense>
                     </SeccionCuenca>
                     <SeccionCuenca id="cierres" titulo="Cierres mensuales" abierta={abiertas.cierres} onAlternar={alternar}
                         resumen="Almacenamiento al cierre de cada mes desde 2021, por fuente y calidad">

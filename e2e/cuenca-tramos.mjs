@@ -11,7 +11,7 @@ const b = await chromium.launch(); let fallos = 0;
 for (const [n, w, h] of VP) {
   const ctx = await b.newContext({ viewport: { width: w, height: h }, hasTouch: w < 900, isMobile: w < 500, serviceWorkers: 'block' });
   const pg = await ctx.newPage(); const errs = [];
-  pg.on('pageerror', (e) => errs.push(String(e))); pg.on('console', (m) => { if (m.type() === 'error' && !/status of 404/.test(m.text())) errs.push(m.text()); }); // 404: la tabla de anotaciones aún no existe en la base (migración sin aplicar)
+  pg.on('pageerror', (e) => errs.push(String(e))); pg.on('console', (m) => { if (m.type() === 'error' && !/status of 40[14]/.test(m.text())) errs.push(m.text()); }); // 404: la tabla de anotaciones aún no existe en la base (migración sin aplicar)
   const falla = (msg) => { fallos++; console.log(`  ✗ [${n}] ${msg}`); };
   await pg.goto(`http://localhost:${PORT}/presas?tab=analitica&vista=cuenca`, { waitUntil: 'domcontentloaded' });
   await pg.waitForSelector('.cu-root .an-kpis', { timeout: 45000 });

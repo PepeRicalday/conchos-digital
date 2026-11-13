@@ -20,7 +20,10 @@ import {
 import { construyeAlertasVivas, diasDesde } from '../utils/alertasVivas';
 import { useDashboardExtra } from '../hooks/useDashboardExtra';
 import { useAqwpCuenca } from '../hooks/useAqwpCuenca';
-import { cuencaCompacta } from '../utils/aqwpCuenca';
+import { useSaludFuentes } from '../hooks/useSaludFuentes';
+import { construyeAlertasCuenca } from '../utils/alertasCuenca';
+import { evaluarFuentes } from '../utils/saludFuentes';
+import { cuencaCompacta, filasPresas } from '../utils/aqwpCuenca';
 import { serieAlmacenamiento } from '../utils/dashboardExtra';
 import { PanelKpis, derivaEstados, estadosTarjetas, type ModeloKpis } from '../components/dashboard/PanelKpis';
 import { BarraCentro } from '../components/dashboard/BarraCentro';
@@ -161,7 +164,13 @@ const Dashboard = () => {
         ahoraMs: ahoraAlertas,
         goes: goesResumen,
     }), [tomasVaradas, segments, modules, presas, activeEvent, predictivas, ahoraAlertas, goesResumen]);
-    const alertas = useMemo(() => fusionaAlertas(vivas, alertasRegistro), [vivas, alertasRegistro]);
+    // Alertas de la cuenca (presas fuera del distrito, lectura repetida, fuentes sin actualizar). Las GOES ya salen arriba.
+    const saludFuentes = useSaludFuentes();
+    const alertasCuenca = useMemo(() => construyeAlertasCuenca({
+        presas: (cuenca.datos ? filasPresas(cuenca.datos.estados) : []).map((f) => ({ etiqueta: f.etiqueta, delDistrito: f.delDistrito, pct: f.pct, sinActualizar: f.sinActualizar, diasIgual: f.diasIgual ?? null, fecha: f.fecha ?? null })),
+        fuentes: saludFuentes.filas ? evaluarFuentes(saludFuentes.filas, ahoraAlertas) : null,
+    }), [cuenca.datos, saludFuentes.filas, ahoraAlertas]);
+    const alertas = useMemo(() => fusionaAlertas([...vivas, ...alertasCuenca], alertasRegistro), [vivas, alertasCuenca, alertasRegistro]);
     const resumen = useMemo(() => resumenAlertas(alertas), [alertas]);
 
     // Protocolo operativo activo: contexto que cambia cómo se leen los KPIs (p. ej. VACIADO con las presas cerradas).

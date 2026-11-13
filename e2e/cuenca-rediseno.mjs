@@ -35,13 +35,13 @@ for (const [n, w, h] of VP) {
   if (r.kpis !== 5) falla(`KPIs de cabecera = ${r.kpis} (esperado 5)`);
   if (r.navSticky !== 'sticky') falla(`la navegación no es sticky (${r.navSticky})`);
   if (r.anchos.length) falla(`elementos fuera del viewport: ${r.anchos.join(', ')}`);
-  // Pistas de la rejilla por ancho del CONTENEDOR del panel (≥1360 → 5 en fila; ≥760 → 6 pistas para acomodar 3 + 2; si no 2).
-  const colsEsp = { 1900: 5, 1440: 6, ipad: 6, ipadv: 2, iphone: 2 }[n]; // ipadv: el panel mide ~722 px (<760)
+  // Pistas de la rejilla por ancho del CONTENEDOR del panel (≥1000 → 5 en fila; ≥760 → 6 pistas para acomodar 3 + 2; si no 2).
+  const colsEsp = { 1900: 5, 1440: 5, ipad: 6, ipadv: 2, iphone: 2 }[n]; // ipadv: el panel mide ~722 px (<760)
   if (r.kpiCols !== colsEsp) falla(`columnas de KPI = ${r.kpiCols} (esperado ${colsEsp})`);
   // Cada pestaña de la navegación debe abrir su contenido y marcarse como actual.
   const pestanas = ['Resumen', 'Vasos', 'Balance', 'Clima'];
   // Con todas las secciones abiertas: cada pestaña debe traer los bloques de las pestañas que absorbió.
-  const esperado = [['.cu-lec', '#cu-red'], ['#cu-presas', '#cu-vasos'], ['#cu-balance-cuenca', '#cu-balance-tramos', '#cu-cierres', '#cu-balance', '#cu-hidro'], ['.cu-planos', '#cu-estaciones', '#cu-mensual', '#cu-lluvia']];
+  const esperado = [['.cu-lec', '#cu-red'], ['#cu-presas', '#cu-ficha', '#cu-comparador', '#cu-vasos'], ['#cu-balance-cuenca', '#cu-balance-tramos', '#cu-ojinaga-ciclos', '#cu-cierres', '#cu-balance', '#cu-hidro'], ['.cu-planos', '#cu-estaciones', '#cu-mensual', '#cu-lluvia']];
   for (let i = 0; i < pestanas.length; i++) {
     await pg.click(`.cu-nav-btn:text-is("${pestanas[i]}")`);
     await pg.waitForTimeout(500);

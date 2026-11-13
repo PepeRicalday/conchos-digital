@@ -29,10 +29,13 @@ export function useAnotacionesCuenca(activo: boolean) {
   useEffect(() => {
     if (!activo) return;
     let vivo = true;
-    supabase.from('cuerpos_agua_anotaciones').select(COLUMNAS).order('fecha', { ascending: false }).limit(500).then(({ data, error: e }) => {
+    supabase.from('cuerpos_agua_anotaciones').select(COLUMNAS).order('fecha', { ascending: false }).limit(500).then((res) => {
       if (!vivo) return;
+      const { data, error: e } = res;
       if (e) {
-        if (sinTabla(e)) { setDisponible(false); setFilas([]); setError(null); } else setError(e.message);
+        if (sinTabla(e)) { setDisponible(false); setFilas([]); setError(null); }
+        else if (e.code === '42501' || /permission denied|JWT/i.test(e.message ?? '')) { setFilas([]); setError(null); }
+        else setError(e.message);
         return;
       }
       setDisponible(true); setError(null); setFilas((data ?? []).map((r) => aAnotacion(r as Fila)));

@@ -46,10 +46,82 @@ async function paginar<T>(consulta: (desde: number, hasta: number) => PromiseLik
   return out;
 }
 
+interface Resultado { datos: DatosCuerposAgua; aviso: string | null }
+const TTL_MS = 10 * 60 * 1000;
+// Una sola descarga compartida por todos los componentes que piden los cuerpos de agua (panel, informe, GEO-MONITOR, tira del ciclo).
+let cache: { t: number; p: Promise<Resultado> } | null = null;
+
+async function descargar(): Promise<Resultado> {
+  const [cuerposRes, cierres, balances, geoRes] = await Promise.all([
+    supabase.from('cuerpos_agua').select('*').eq('activo', true),
+    paginar<Record<string, unknown>>((a, b) => supabase.from('cuerpos_agua_cierre_mensual').select('*').order('mes', { ascending: true }).order('cuerpo_id', { ascending: true }).range(a, b)),
+    paginar<Record<string, unknown>>((a, b) => supabase.from('cuerpos_agua_balance_mensual').select('*').order('mes', { ascending: true }).order('cuerpo_id', { ascending: true }).range(a, b)),
+    supabase.from('cuerpos_agua_geometria').select('cuerpo_id, geojson, area_km2, num_islas, area_islas_km2').eq('vigente', true).eq('tipo', 'huella_maxima'),
+  ]);
+  if (cuerposRes.error) throw new Error(cuerposRes.error.message);
+  if (geoRes.error) throw new Error(geoRes.error.message);
+  const cuerpos = ordenarCuerpos((cuerposRes.data ?? []).map((r) => normalizarCuerpo(r as Record<string, unknown>)));
+
+  const huellas = new Map<string, HuellaVaso>();
+  for (const r of geoRes.data ?? []) {
+    huellas.set(String(r.cuerpo_id), { cuerpoId: String(r.cuerpo_id), anillos: anillosDeGeojson(r.geojson), areaKm2: num(r.area_km2) ?? 0, numIslas: num(r.num_islas) ?? 0, areaIslasKm2: num(r.area_islas_km2) ?? 0 });
+  }
+
+  // Escenas NDWI vigentes (v2): ligeras primero, y el contorno solo de la más reciente de cada serie.
+  const escenas = new Map<string, EscenaSatelital[]>();
+  let aviso: string | null = null;
+  try {
+    const claves = new Set(cuerpos.map((c) => c.idSerie));
+    const filas = await paginar<Record<string, unknown>>((a, b) => supabase.from('vaso_geometria_historico')
+      .select('presa_id, fecha_escena, area_km2, perimetro_km, resolucion_m, cobertura_nubes_vaso_pct, parametros_metodo')
+      .eq('vigente', true).eq('es_referencia_historica', false).order('fecha_escena', { ascending: true }).range(a, b));
+    for (const r of filas) {
+      const id = String(r.presa_id);
+      if (!claves.has(id)) continue;
+      const per = num(r.perimetro_km), res = num(r.resolucion_m) ?? 10;
+      const e: EscenaSatelital = {
+        idSerie: id, fecha: String(r.fecha_escena), areaKm2: num(r.area_km2), perimetroKm: per,
+        incertidumbreKm2: per == null ? null : Math.round(per * res) / 1000, nubesVasoPct: num(r.cobertura_nubes_vaso_pct), separacionDebil: separacionDebil(r.parametros_metodo), contorno: [],
+      };
+      escenas.set(id, [...(escenas.get(id) ?? []), e]);
+    }
+    // Una sola consulta: se piden las filas de las fechas «última escena» y se casa cada una con su serie por (vaso, fecha).
+    // Dos vasos pueden compartir fecha de pasada, por eso el cruce exige también el vaso. Si falla, quedan sin contorno (no tira la vista).
+    const ultimas = new Map([...escenas.entries()].map(([id, serie]) => [id, serie[serie.length - 1]]));
+    if (ultimas.size) {
+      const { data, error: e } = await supabase.from('vaso_geometria_historico').select('presa_id, fecha_escena, contorno_geojson')
+        .eq('vigente', true).eq('es_referencia_historica', false)
+        .in('presa_id', [...ultimas.keys()]).in('fecha_escena', [...new Set([...ultimas.values()].map((u) => u.fecha))]);
+      if (!e) {
+        const ms = (f: unknown) => Date.parse(String(f));
+        for (const r of data ?? []) {
+          const u = ultimas.get(String(r.presa_id));
+          if (u && ms(r.fecha_escena) === ms(u.fecha)) u.contorno = anillosDeGeojson(r.contorno_geojson);
+        }
+      }
+    }
+  } catch (e) {
+    aviso = `No se pudieron leer las escenas satelitales: ${(e as Error).message}`;
+    escenas.clear();
+  }
+
+  return { datos: { cuerpos, cierres: cierres.map(normalizarCierre), balances: balances.map(normalizarBalance), huellas, escenas }, aviso };
+}
+
+function obtener(forzar = false): Promise<Resultado> {
+  if (forzar || !cache || Date.now() - cache.t > TTL_MS) {
+    const p = descargar();
+    cache = { t: Date.now(), p };
+    p.catch(() => { if (cache?.p === p) cache = null; }); // un fallo no se queda en caché
+  }
+  return cache.p;
+}
+
 /**
  * Catálogo de cuerpos de agua de la cuenca + cierres mensuales + balance + huellas KMZ + escenas satelitales.
  * Todo es lectura de tablas ya calculadas (la fuente elegida y la calidad vienen congeladas en cada cierre).
  * Un fallo en las escenas satelitales NO tira la vista: se queda sin medición satelital y lo dice.
+ * La descarga se comparte entre componentes (caché de módulo, 10 min); «recargar» la fuerza de nuevo.
  */
 export function useCuerposAgua() {
   const [datos, setDatos] = useState<DatosCuerposAgua | null>(null);
@@ -61,71 +133,12 @@ export function useCuerposAgua() {
 
   useEffect(() => {
     let vivo = true;
-    (async () => {
-      try {
-        const [cuerposRes, cierres, balances, geoRes] = await Promise.all([
-          supabase.from('cuerpos_agua').select('*').eq('activo', true),
-          paginar<Record<string, unknown>>((a, b) => supabase.from('cuerpos_agua_cierre_mensual').select('*').order('mes', { ascending: true }).order('cuerpo_id', { ascending: true }).range(a, b)),
-          paginar<Record<string, unknown>>((a, b) => supabase.from('cuerpos_agua_balance_mensual').select('*').order('mes', { ascending: true }).order('cuerpo_id', { ascending: true }).range(a, b)),
-          supabase.from('cuerpos_agua_geometria').select('cuerpo_id, geojson, area_km2, num_islas, area_islas_km2').eq('vigente', true).eq('tipo', 'huella_maxima'),
-        ]);
-        if (cuerposRes.error) throw new Error(cuerposRes.error.message);
-        if (geoRes.error) throw new Error(geoRes.error.message);
-        const cuerpos = ordenarCuerpos((cuerposRes.data ?? []).map((r) => normalizarCuerpo(r as Record<string, unknown>)));
-
-        const huellas = new Map<string, HuellaVaso>();
-        for (const r of geoRes.data ?? []) {
-          huellas.set(String(r.cuerpo_id), { cuerpoId: String(r.cuerpo_id), anillos: anillosDeGeojson(r.geojson), areaKm2: num(r.area_km2) ?? 0, numIslas: num(r.num_islas) ?? 0, areaIslasKm2: num(r.area_islas_km2) ?? 0 });
-        }
-
-        // Escenas NDWI vigentes (v2): ligeras primero, y el contorno solo de la más reciente de cada serie.
-        const escenas = new Map<string, EscenaSatelital[]>();
-        let aviso: string | null = null;
-        try {
-          const claves = new Set(cuerpos.map((c) => c.idSerie));
-          const filas = await paginar<Record<string, unknown>>((a, b) => supabase.from('vaso_geometria_historico')
-            .select('presa_id, fecha_escena, area_km2, perimetro_km, resolucion_m, cobertura_nubes_vaso_pct, parametros_metodo')
-            .eq('vigente', true).eq('es_referencia_historica', false).order('fecha_escena', { ascending: true }).range(a, b));
-          for (const r of filas) {
-            const id = String(r.presa_id);
-            if (!claves.has(id)) continue;
-            const per = num(r.perimetro_km), res = num(r.resolucion_m) ?? 10;
-            const e: EscenaSatelital = {
-              idSerie: id, fecha: String(r.fecha_escena), areaKm2: num(r.area_km2), perimetroKm: per,
-              incertidumbreKm2: per == null ? null : Math.round(per * res) / 1000, nubesVasoPct: num(r.cobertura_nubes_vaso_pct), separacionDebil: separacionDebil(r.parametros_metodo), contorno: [],
-            };
-            escenas.set(id, [...(escenas.get(id) ?? []), e]);
-          }
-          // Una sola consulta: se piden las filas de las fechas «última escena» y se casa cada una con su serie por (vaso, fecha).
-          // Dos vasos pueden compartir fecha de pasada, por eso el cruce exige también el vaso. Si falla, quedan sin contorno (no tira la vista).
-          const ultimas = new Map([...escenas.entries()].map(([id, serie]) => [id, serie[serie.length - 1]]));
-          if (ultimas.size) {
-            const { data, error: e } = await supabase.from('vaso_geometria_historico').select('presa_id, fecha_escena, contorno_geojson')
-              .eq('vigente', true).eq('es_referencia_historica', false)
-              .in('presa_id', [...ultimas.keys()]).in('fecha_escena', [...new Set([...ultimas.values()].map((u) => u.fecha))]);
-            if (!e) {
-              const ms = (f: unknown) => Date.parse(String(f));
-              for (const r of data ?? []) {
-                const u = ultimas.get(String(r.presa_id));
-                if (u && ms(r.fecha_escena) === ms(u.fecha)) u.contorno = anillosDeGeojson(r.contorno_geojson);
-              }
-            }
-          }
-        } catch (e) {
-          aviso = `No se pudieron leer las escenas satelitales: ${(e as Error).message}`;
-          escenas.clear();
-        }
-
-        if (!vivo) return;
-        setDatos({ cuerpos, cierres: cierres.map(normalizarCierre), balances: balances.map(normalizarBalance), huellas, escenas });
-        setAvisoSatelite(aviso);
-        setError(null);
-      } catch (e) {
-        if (vivo) setError((e as Error).message || 'Error desconocido');
-      } finally {
-        if (vivo) setLoading(false);
-      }
-    })();
+    obtener(version > 0).then((r) => {
+      if (!vivo) return;
+      setDatos(r.datos); setAvisoSatelite(r.aviso); setError(null);
+    }).catch((e: Error) => {
+      if (vivo) setError(e.message || 'Error desconocido');
+    }).finally(() => { if (vivo) setLoading(false); });
     return () => { vivo = false; };
   }, [version]);
 

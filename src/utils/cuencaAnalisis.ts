@@ -397,3 +397,41 @@ export function lecturasBalance(b: BalanceCuencaPeriodo, etiquetaPeriodo: string
   if (neg.length) out.push({ tono: 'warn', titulo: 'Residuo negativo', texto: `${neg.map((v) => v.cuerpo.etiqueta).join(', ')}: el vaso retuvo más agua de la que explica entradas − salidas. Apunta a aportación subestimada; revisar antes de usar.` });
   return out;
 }
+
+// ── Salida por Ojinaga, ciclo contra ciclo ──────────────────────────────────────────────────────────────────────────
+export interface CicloSalida {
+  /** «2025-2026». */
+  clave: string;
+  desde: string;
+  hasta: string;
+  enCurso: boolean;
+  /** Todo el ciclo (o lo que va, en el ciclo en curso). */
+  total: SalidaCuenca;
+  /** Del 1 de octubre al mismo día del año en que estamos, para poder comparar ciclos a igual fecha. */
+  aLaFecha: SalidaCuenca;
+}
+
+/**
+ * Salida por el aforo de Ojinaga por ciclo agrícola (1 oct – 30 sep). Cada ciclo se da completo y «a la misma fecha» que hoy,
+ * que es la comparación justa mientras el ciclo en curso no termina. Un ciclo con menos de 60 % de días con aforo no tiene
+ * volumen estimado (S/D) y solo se da la cota inferior observada: no se rellena con cero ni se promedia sobre huecos.
+ */
+export function salidaPorCiclo(lecturas: LecturaGasto[], hoyISO: string): CicloSalida[] {
+  const con = lecturas.filter((l) => l.valor != null).map((l) => l.fecha).sort();
+  if (!con.length) return [];
+  const inicioActual = Number(hoyISO.slice(5, 7)) >= 10 ? Number(hoyISO.slice(0, 4)) : Number(hoyISO.slice(0, 4)) - 1;
+  const primero = Number(con[0].slice(5, 7)) >= 10 ? Number(con[0].slice(0, 4)) : Number(con[0].slice(0, 4)) - 1;
+  const mmdd = hoyISO.slice(5, 10);
+  const out: CicloSalida[] = [];
+  for (let a = inicioActual; a >= primero; a--) {
+    const desde = `${a}-10-01`, hasta = `${a + 1}-09-30`;
+    // Mismo día del ciclo que hoy: si hoy es del 1 oct al 31 dic cae en el año a; si es del 1 ene al 30 sep, en a + 1.
+    const finComparable = `${Number(mmdd.slice(0, 2)) >= 10 ? a : a + 1}-${mmdd}`;
+    out.push({
+      clave: `${a}-${a + 1}`, desde, hasta, enCurso: a === inicioActual,
+      total: salidaCuenca(lecturas, desde, hasta, hoyISO),
+      aLaFecha: salidaCuenca(lecturas, desde, finComparable > hasta ? hasta : finComparable, finComparable),
+    });
+  }
+  return out;
+}

@@ -226,9 +226,12 @@ export default function SistemaCuenca({ cuerpos, modelos, estaciones, ventHidro,
     const r = lluviaReg.get(n.region as string), reg = regiones.find((x) => x.clave === n.region) as RegionLluvia;
     const mm = r?.areal.mm ?? null;
     const tinte = mm == null ? 0 : 0.08 + 0.3 * Math.min(1, mm / mmMax);
-    const pie = lluviaEstado === 'cargando' ? 'cargando…' : lluviaEstado === 'error' ? 'red de lluvia sin cargar' : `${r?.dentro.length ?? 0} est. · ${etiquetaVentana(ventanaObs).replace(' (parcial)', '*')}`;
+    // La cifra es una estimación por interpolación (incluye vecinas hasta 90 km): se muestra al lado el máximo medido DENTRO de la región.
+    const maxDentro = r?.dentro.length ? (r.dentro[0].mm as number) : null;
+    const pie = lluviaEstado === 'cargando' ? 'cargando…' : lluviaEstado === 'error' ? 'red de lluvia sin cargar'
+      : `${r?.dentro.length ?? 0} est.${maxDentro != null ? ` máx ${fmtLluvia(maxDentro)}` : ''} · ${etiquetaVentana(ventanaObs).replace(' (parcial)', '*')}`;
     return (
-      <g key={n.id} {...propsNodo(n, `Lluvia en ${reg.nombre}: ${mm == null ? 'sin dato' : `${fmtLluvia(mm)} milímetros`}, ${cuandoVentana(ventanaObs)}`, mm == null)}>
+      <g key={n.id} {...propsNodo(n, `Lluvia en ${reg.nombre}: ${mm == null ? 'sin dato' : `${fmtLluvia(mm)} milímetros estimados por interpolación`}, ${cuandoVentana(ventanaObs)}`, mm == null)}>
         <rect width={n.w} height={n.h} rx="14" className={`cu-sis-caja cu-sis-caja--lluvia${mm == null ? ' cu-sis-caja--sd' : ''}`} style={{ fillOpacity: tinte }} />
         <path d={`M${n.w - 26},27 l-4,9 M${n.w - 18},27 l-4,9 M${n.w - 10},27 l-4,9`} className="cu-sis-gotas" aria-hidden="true" />
         <text x="11" y="19" className="cu-sis-t1">{reg.nombre}</text>
@@ -367,9 +370,17 @@ export default function SistemaCuenca({ cuerpos, modelos, estaciones, ventHidro,
           <>
             <p className="cu-sis-cifra"><span className="cu-sis-cifra-n">{r?.areal.mm == null ? 'S/D' : fmtLluvia(r.areal.mm)}</span><span className="cu-sis-cifra-u">{r?.areal.mm == null ? '' : 'mm'} · {cuandoVentana(ventanaObs)}</span></p>
             {r?.areal.mm == null && <p className="cu-sis-aviso">◇ {lluviaEstado === 'cargando' ? 'Cargando la red de estaciones…' : lluviaEstado === 'error' ? 'No se pudo cargar la red de estaciones.' : `Sin promedio: ${r?.areal.motivoSD ?? 'sin estaciones con dato'}.`}</p>}
+            {r?.areal.mm != null && (
+              <p className="cu-sis-nota">Cifra estimada por interpolación sobre toda la región, no una medición. {r.dentro.length > 0 && r.areal.mm > (r.dentro[0].mm as number) + 0.05
+                ? `Supera lo que marca cualquier estación de dentro (máx ${fmtLluvia(r.dentro[0].mm)} mm) porque incluye lluvia de estaciones vecinas fuera de la región, hasta 90 km.`
+                : r.dentro.length > 0 && r.areal.mm > 0.04 && (r.dentro[0].mm as number) === 0
+                  ? 'Sus estaciones de dentro marcan 0.0 mm: el valor viene de estaciones vecinas fuera de la región, hasta 90 km.'
+                  : 'Considera también estaciones vecinas fuera de la región, hasta 90 km.'}</p>
+            )}
             <dl className="cu-sis-dl">
               <Hecho t="Estaciones dentro" nota="con dato útil en la ventana">{r ? String(r.dentro.length) : 'S/D'}</Hecho>
-              <Hecho t="Rango en la región">{r?.areal.min != null && r.areal.max != null ? `${fmtLluvia(r.areal.min)} – ${fmtLluvia(r.areal.max)} mm` : 'S/D'}</Hecho>
+              <Hecho t="Máximo medido dentro" nota="valor de la estación, sin interpolar">{r?.dentro.length ? `${fmtLluvia(r.dentro[0].mm)} mm` : 'S/D'}</Hecho>
+              <Hecho t="Rango estimado en la región" nota="celdas interpoladas">{r?.areal.min != null && r.areal.max != null ? `${fmtLluvia(r.areal.min)} – ${fmtLluvia(r.areal.max)} mm` : 'S/D'}</Hecho>
               <Hecho t="Área con estación cerca" nota="a 90 km o menos">{r && r.areal.coberturaPct > 0 ? `${f(r.areal.coberturaPct, 0)} %` : 'S/D'}</Hecho>
             </dl>
             {top.length > 0 && (

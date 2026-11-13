@@ -33,8 +33,9 @@ export const TarjetaPresas = memo(function TarjetaPresas({ m }: { m: ModeloKpis 
 
     const { presas, cuenca } = m;
     const r = cuenca?.r ?? null;
-    // Lluvia areal de la red JCAS (hoy parcial y ayer): solo se pide al abrir la vista Cuenca y con 3 días de lecturas (no los 36 de Presas).
-    const { red: redJcas } = useJcasCuenca(30 * 60_000, { activo: vista === 'cuenca', dias: 3 });
+    // Lluvia areal de la red (hoy parcial y ayer): solo se pide al abrir la vista Cuenca. Se cargan 30 días porque la detección de pluviómetros
+    // sospechosos (0 mm continuo con vecinas lloviendo) necesita esa ventana; con menos, el Dashboard y Red y estaciones podrían divergir.
+    const { red: redJcas } = useJcasCuenca(30 * 60_000, { activo: vista === 'cuenca', dias: 30 });
     const arealHoy = redJcas?.modelo?.arealHoy ?? null, arealAyer = redJcas?.modelo?.areal1 ?? null;
 
     const itemsCuenca: ColumnaEmbalse[] = useMemo(() => (r?.presas ?? []).map((p) => ({
@@ -62,8 +63,8 @@ export const TarjetaPresas = memo(function TarjetaPresas({ m }: { m: ModeloKpis 
                 contexto={r
                     ? <><b>{r.almacenadoMm3 != null ? `${r.almacenadoMm3.toFixed(0)} / ${namoCuenca.toFixed(0)} Mm³` : 'S/D'}</b>
                         {r.conDato < r.total ? ` (${r.conDato}/${r.total} presas)` : ` · ${r.total} presas`}
-                        <span className="kp-sep"> · </span><span className="kp-nw">lluvia 7 d <b>{r.lluvia.promedio7Mm != null ? `${r.lluvia.promedio7Mm.toFixed(1)} mm` : 'S/D'}</b></span>
-                        <span className="kp-sep"> · </span><span className="kp-nw" title="Red JCAS/UACJ: lluvia areal de la cuenca; hoy es parcial (día en curso)">JCAS hoy <b>{arealHoy?.mm != null ? `${arealHoy.mm.toFixed(1)} mm` : 'S/D'}</b>{arealAyer?.mm != null ? <> · ayer <b>{arealAyer.mm.toFixed(1)} mm</b></> : null}</span>
+                        <span className="kp-sep"> · </span><span className="kp-nw" title="Promedio simple de 7 días de los pluviómetros de las presas (CONAGUA vía USIBWC). No es el promedio areal de la cuenca de la cifra siguiente.">presas 7 d <b>{r.lluvia.promedio7Mm != null ? `${r.lluvia.promedio7Mm.toFixed(1)} mm` : 'S/D'}</b></span>
+                        <span className="kp-sep"> · </span><span className="kp-nw" title="Lluvia areal estimada de la cuenca (interpolación con las estaciones JCAS/UACJ y las propias WeatherLink); hoy es parcial (día en curso)">cuenca hoy <b>{arealHoy?.mm != null ? `${arealHoy.mm.toFixed(1)} mm` : 'S/D'}</b>{arealAyer?.mm != null ? <> · ayer <b>{arealAyer.mm.toFixed(1)} mm</b></> : null}</span>
                         {r.sinActualizar > 0 ? <span className="kp-nw"> · {r.sinActualizar} sin actualizar (trama)</span> : null}</>
                     : <>Contexto CONAGUA vía USIBWC: sin lectura</>}
                 fresco={r?.frescura ? `${r.frescura.texto} · dato provisional` : 'Sin lectura (S/D)'} stale={!!r?.frescura?.stale} />

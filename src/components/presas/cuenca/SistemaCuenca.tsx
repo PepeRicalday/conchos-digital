@@ -4,7 +4,8 @@ import { useCanalPerfil } from '../../../hooks/useDashboardPulso';
 import { gastoMedio, textoGasto, type EstacionRed } from '../../../hooks/useHidrometriaCuenca';
 import type { DatosCuerposAgua } from '../../../hooks/useCuerposAgua';
 import { cargarCapas } from '../../../utils/capasCuenca';
-import { agregadoCuenca, aportacionTotal, type EstadoUbicacion } from '../../../utils/aqwpCuenca';
+import { cargarContornosModulos } from '../../../utils/contornosModulos';
+import { PRESA_ID_BOQUILLA, PRESA_ID_MADERO, agregadoCuenca, aportacionTotal, type EstadoUbicacion } from '../../../utils/aqwpCuenca';
 import type { PresaCuencaModelo } from '../../../utils/cuencaModelo';
 import type { PoligonoGeo } from '../../../utils/geoCuenca';
 import { etiquetaMes, ultimoCierreConDato, type CuerpoAgua } from '../../../utils/cuerposAgua';
@@ -18,7 +19,7 @@ import {
   recorridoDelAgua, regionDePunto, regionesDeSubcuencas, textoGastoTramo, todasLasCapasSistema,
   type ArcoSis, type CapaSistema, type LluviaRegion, type NodoSis, type RegionLluvia,
 } from '../../../utils/sistemaCuenca';
-import { GLIFO_ESTADO } from './TanquePresa';
+import { GLIFO_ESTADO } from '../../../utils/presaNiveles';
 
 const CLAVE_CAPAS = 'sica.cuenca.sistema.capas';
 const GLIFO_ENLACE = { en_linea: '●', retraso: '◐', sin_transmision: '■', sd: '◇' } as const;
@@ -106,7 +107,8 @@ export default function SistemaCuenca({ cuerpos, modelos, estaciones, ventHidro,
     let vivo = true;
     cargarCapas(['subcuencas']).then((d) => { if (vivo) setRegiones(regionesDeSubcuencas(d.subcuencas)); });
     // Poligonal del distrito (sus módulos): las estaciones de dentro son lluvia del distrito, no de la región que lo rodea.
-    fetch('/geo/modulos.geojson').then((r) => (r.ok ? r.json() : null)).then((j) => { if (vivo) setDistrito(poligonosDeGeojson(j)); }).catch(() => { /* sin poligonal: la lluvia del distrito queda S/D */ });
+    // Descarga compartida (una por sesión, la misma del plano de módulos). Sin poligonal la lluvia del distrito queda S/D.
+    cargarContornosModulos().then((j) => { if (vivo) setDistrito(poligonosDeGeojson(j)); });
     return () => { vivo = false; };
   }, []);
 
@@ -205,7 +207,7 @@ export default function SistemaCuenca({ cuerpos, modelos, estaciones, ventHidro,
     const est = estadoEmbalse(l.sd ? null : l.pct);
     const lleno = l.sd || l.pct == null ? 0 : Math.max(0, Math.min(100, l.pct)) / 100;
     const flujo = con('gastos') && fila ? `entra ${q2(fila.aportacionM3s)} · sale ${q2(fila.extraccionTotalM3s)}` : l.cuando;
-    const voz = `${c.etiqueta}: ${l.alm == null ? 'sin dato' : `${f(l.alm, 1)} millones de metros cúbicos, ${l.pct == null ? 'porcentaje sin dato' : `${f(l.pct, 1)} por ciento del NAMO`}`}, ${l.cuando}`;
+    const voz = `${c.etiqueta}: ${l.alm == null || l.sd ? 'sin dato vigente' : `${f(l.alm, 1)} millones de metros cúbicos, ${l.pct == null ? 'porcentaje sin dato' : `${f(l.pct, 1)} por ciento del NAMO`}`}, ${l.cuando}`;
     return (
       <g key={n.id} {...propsNodo(n, voz, l.sd)}>
         {!l.sd && <rect width={n.w} height={n.h} rx="10" className={`cu-sis-pulso cu-sis-pulso--${est.clave}`} aria-hidden="true" />}
@@ -215,7 +217,8 @@ export default function SistemaCuenca({ cuerpos, modelos, estaciones, ventHidro,
         <path d={`M${n.w - 22},8 h12 l-1.5,9 h-9 z M${n.w - 22},20 q3,-3 6,0 t6,0`} className={`cu-sis-ico cu-sis-ico--${l.sd ? 'sd' : est.clave}`} aria-hidden="true" />
         <text x="16" y="19" className="cu-sis-t1">{c.etiqueta}</text>
         <text x="16" y="37" className="cu-sis-t2">
-          {l.alm == null ? 'S/D' : <><tspan aria-hidden="true">{GLIFO_ESTADO[est.clave]} </tspan>{l.pct == null ? 'S/D' : `${f(l.pct, 1)} %`}{` · ${f(l.alm, l.alm >= 100 ? 0 : 1)} Mm³`}</>}
+          {/* Un dato vencido (último cierre de hace más de 2 meses) no se presenta como cifra de hoy: S/D y, debajo, de cuándo es el último. */}
+          {l.alm == null || l.sd ? 'S/D' : <><tspan aria-hidden="true">{GLIFO_ESTADO[est.clave]} </tspan>{l.pct == null ? 'S/D' : `${f(l.pct, 1)} %`}{` · ${f(l.alm, l.alm >= 100 ? 0 : 1)} Mm³`}</>}
         </text>
         <text x="16" y="52" className="cu-sis-t3">{flujo}</text>
       </g>
@@ -229,7 +232,9 @@ export default function SistemaCuenca({ cuerpos, modelos, estaciones, ventHidro,
     // La cifra es una estimación por interpolación (incluye vecinas hasta 90 km): se muestra al lado el máximo medido DENTRO de la región.
     const maxDentro = r?.dentro.length ? (r.dentro[0].mm as number) : null;
     const pie = lluviaEstado === 'cargando' ? 'cargando…' : lluviaEstado === 'error' ? 'red de lluvia sin cargar'
-      : `${r?.dentro.length ?? 0} est.${maxDentro != null ? ` máx ${fmtLluvia(maxDentro)}` : ''} · ${etiquetaVentana(ventanaObs).replace(' (parcial)', '*')}`;
+      // La ventana ya la dice el selector de arriba: aquí solo cabe el conteo y el máximo (el pie completo se salía de la caja).
+      // El asterisco conserva el aviso de ventana parcial («Hoy»).
+      : `${r?.dentro.length ?? 0} est.${maxDentro != null ? ` · máx ${fmtLluvia(maxDentro)}` : ''}${etiquetaVentana(ventanaObs).includes('(parcial)') ? ' *' : ''}`;
     return (
       <g key={n.id} {...propsNodo(n, `Lluvia en ${reg.nombre}: ${mm == null ? 'sin dato' : `${fmtLluvia(mm)} milímetros estimados por interpolación`}, ${cuandoVentana(ventanaObs)}`, mm == null)}>
         <rect width={n.w} height={n.h} rx="14" className={`cu-sis-caja cu-sis-caja--lluvia${mm == null ? ' cu-sis-caja--sd' : ''}`} style={{ fillOpacity: tinte }} />
@@ -337,11 +342,11 @@ export default function SistemaCuenca({ cuerpos, modelos, estaciones, ventHidro,
         titulo: c.etiqueta, sub: `${c.corriente ?? 'Corriente S/D'} · ${c.rol === 'almacenamiento' ? 'presa de almacenamiento' : c.rol}${c.distritoRiego ? ` · DR ${c.distritoRiego}` : ''}`,
         cuerpo: (
           <>
-            <p className="cu-sis-cifra"><span className="cu-sis-cifra-n">{l.pct == null ? 'S/D' : f(l.pct, 1)}</span><span className="cu-sis-cifra-u">{l.pct == null ? '' : '% del NAMO'}</span>
+            <p className="cu-sis-cifra"><span className="cu-sis-cifra-n">{l.sd || l.pct == null ? 'S/D' : f(l.pct, 1)}</span><span className="cu-sis-cifra-u">{l.sd || l.pct == null ? '' : '% del NAMO'}</span>
               <span className={`cu-estado cu-estado--${l.sd ? 'sd' : est.clave}`}><span aria-hidden="true">{GLIFO_ESTADO[l.sd ? 'sd' : est.clave]}</span> {l.sd ? 'S/D' : est.etiqueta}</span></p>
             <Barra pct={l.sd ? null : l.pct} clase={`cu-sis-barra-v--${est.clave}`} marcas={[20, 40]} />
             <dl className="cu-sis-dl">
-              <Hecho t="Almacenamiento" nota={l.cuando}>{l.alm == null ? 'S/D' : `${f(l.alm, 1)} Mm³`}{c.namoRefMm3 != null && ` de ${f(c.namoRefMm3, 1)}`}</Hecho>
+              <Hecho t={l.vencido ? 'Último almacenamiento conocido' : 'Almacenamiento'} nota={l.cuando}>{l.alm == null ? 'S/D' : `${f(l.alm, 1)} Mm³`}{c.namoRefMm3 != null && ` de ${f(c.namoRefMm3, 1)}`}</Hecho>
               <Hecho t="Le entra" nota={fila ? 'aportación que publica CONAGUA' : 'sin telemetría'}>{q2(fila?.aportacionM3s)}{fila?.aportacionM3s != null && ' m³/s'}</Hecho>
               <Hecho t="Le sale" nota={fila?.vertidoM3s != null && fila.vertidoM3s > 0 ? `incluye vertido de ${q2(fila.vertidoM3s)} m³/s` : 'extracción total'}>{q2(fila?.extraccionTotalM3s)}{fila?.extraccionTotalM3s != null && ' m³/s'}</Hecho>
               {entrada && <Hecho t={`Río en ${entrada.sitio.corto}`} nota={`estación hidrométrica · media ${VENTANAS[ventHidro].etiqueta}`}>{textoGasto(entrada.stat, 1)}{entrada.stat && ' m³/s'}</Hecho>}
@@ -445,7 +450,7 @@ export default function SistemaCuenca({ cuerpos, modelos, estaciones, ventHidro,
     }
     if (n.tipo === 'distrito') {
       const topD = (lluviaDist?.dentro ?? []).slice(0, 6), topeD = Math.max(1, ...topD.map((p) => p.mm as number));
-      const boq = modelos.find((m) => m.fila.presaId === 'PRE-001')?.fila, mad = modelos.find((m) => m.fila.presaId === 'PRE-002')?.fila;
+      const boq = modelos.find((m) => m.fila.presaId === PRESA_ID_BOQUILLA)?.fila, mad = modelos.find((m) => m.fila.presaId === PRESA_ID_MADERO)?.fila;
       const c = cm.conduccion;
       const ultimoAforo = (x: typeof k0) => (x.ultimoAforoM3s != null ? `último aforo ${q2(x.ultimoAforoM3s)} m³/s${x.ultimoAforoMs ? ` · ${fechaHoraMs(x.ultimoAforoMs)}` : ''}` : 'sin aforo en 30 días');
       return {

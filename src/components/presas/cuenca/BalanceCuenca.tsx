@@ -3,7 +3,7 @@ import { DataTable, Kpi, type Columna } from '../../ui/base';
 import { formatearNumero } from '../../../utils/historicoPresas';
 import { etiquetaMes } from '../../../utils/cuerposAgua';
 import {
-  balanceCuenca, finDeMes, lecturasBalance, rangosPeriodo, salidaCuenca,
+  balanceCuenca, finDeMes, lecturasBalance, periodoInicial, rangosPeriodo, salidaCuenca,
   type BalanceVasoPeriodo, type LecturaGasto, type PeriodoCuenca,
 } from '../../../utils/cuencaAnalisis';
 import type { DatosCuerposAgua } from '../../../hooks/useCuerposAgua';
@@ -55,7 +55,7 @@ export default function BalanceCuenca({ datos, salida, hoyISO, compacto = false,
 }) {
   const rangos = useMemo(() => rangosPeriodo(hoyISO), [hoyISO]);
   // El ciclo en curso apenas empieza en octubre: con menos de 3 meses, el ciclo anterior es el que da un resultado.
-  const [periodo, setPeriodo] = useState<PeriodoCuenca>(() => (Number(hoyISO.slice(5, 7)) >= 10 ? 'cicloAnt' : 'ciclo'));
+  const [periodo, setPeriodo] = useState<PeriodoCuenca>(() => periodoInicial(hoyISO));
   const rango = rangos.find((r) => r.clave === periodo) ?? rangos[0];
   const bal = useMemo(() => balanceCuenca(datos.cuerpos, datos.balances, rango), [datos, rango]);
   const sal = useMemo(() => (salida ? salidaCuenca(salida, rango.desde, finDeMes(rango.hasta), hoyISO) : null), [salida, rango, hoyISO]);
@@ -67,7 +67,7 @@ export default function BalanceCuenca({ datos, salida, hoyISO, compacto = false,
       <div className="cu-ctl">
         <span className="cu-ctl-etq" id="cu-bc-per">Periodo</span>
         <div className="an-seg cu-seg-envuelve" role="group" aria-labelledby="cu-bc-per">
-          {rangos.map((r) => <button key={r.clave} type="button" className="an-seg-btn" aria-pressed={r.clave === periodo} onClick={() => setPeriodo(r.clave)}>{r.etiqueta}</button>)}
+          {rangos.map((r) => <button key={r.clave} type="button" className="an-seg-btn" aria-pressed={r.clave === periodo} onClick={() => setPeriodo(r.clave)}>{r.etiqueta}{r.enCurso ? ' (en curso)' : ''}</button>)}
         </div>
       </div>
     </div>
@@ -91,7 +91,7 @@ export default function BalanceCuenca({ datos, salida, hoyISO, compacto = false,
       <section className="an-card" aria-label="Balance de la cuenca">
         <div className="cu-red-cab">
           <div>
-            <h4 className="an-h">Balance de la cuenca · {rango.etiqueta}</h4>
+            <h4 className="an-h">Balance de la cuenca · {rango.etiqueta}{rango.enCurso ? ' (en curso)' : ''}</h4>
             <p className="an-nota">{lecturas[0]?.texto}</p>
           </div>
           {onIr && <button type="button" className="an-btn" onClick={onIr}>Ver balance completo →</button>}
@@ -104,7 +104,7 @@ export default function BalanceCuenca({ datos, salida, hoyISO, compacto = false,
 
   return (
     <section className="an-card" id="cu-balance-cuenca" aria-label="Balance de la cuenca">
-      <h4 className="an-h">Balance de la cuenca · {rango.etiqueta}</h4>
+      <h4 className="an-h">Balance de la cuenca · {rango.etiqueta}{rango.enCurso ? ' (en curso)' : ''}</h4>
       <p className="an-nota">
         Resultado de todos los vasos en el periodo: cuánto cambió el almacenamiento, cuánto entró, cuánto salió de los vasos y cuánto dejó la cuenca por Ojinaga.
         Sale del balance mensual por vaso (flujos diarios de CONAGUA y cierres mensuales). De {etiquetaMes(rango.desde, true)} a {etiquetaMes(rango.hasta, true)}.
@@ -116,7 +116,7 @@ export default function BalanceCuenca({ datos, salida, hoyISO, compacto = false,
       <BarrasDelta vasos={bal.vasos} />
       <DataTable propia className="cu-tabla" claseContenedor="cu-tabla-wrap" regionAria="Balance por vaso en el periodo (desplazable)" captionOculto caption={`Balance por vaso, ${rango.etiqueta}`} clave={(v) => v.cuerpo.id} filas={bal.vasos} columnas={COLUMNAS} />
       <p className="an-nota cu-bal-pie">
-        <b>Límites:</b> no es un balance hidrológico cerrado. Faltan los escurrimientos que entran al río entre un vaso y otro, la evaporación (S/D), las filtraciones y los retornos de riego; por eso entradas − salidas no tiene que igualar al cambio de almacenamiento.
+        <b>Límites:</b> no es un balance hidrológico cerrado. Faltan los escurrimientos que entran al río entre un vaso y otro, las filtraciones y los retornos de riego; la evaporación solo está calculada para La Boquilla y F. I. Madero (ver «Balance mensual por vaso») y en los demás vasos es S/D; por eso entradas − salidas no tiene que igualar al cambio de almacenamiento.
         La aportación de cada vaso la deduce CONAGUA de su propia operación.
         {bal.sinBalance.length > 0 && <> Sin balance (no publican flujos): {bal.sinBalance.map((c) => c.etiqueta).join(', ')}.</>}
       </p>

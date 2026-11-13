@@ -3,7 +3,7 @@ import { useDevice } from '../../../hooks/useDevice';
 import { estadoEmbalse } from '../../../utils/presaNiveles';
 import { formatearNumero } from '../../../utils/historicoPresas';
 import { construirRed, etiquetaMes, ultimoCierreConDato, type CierreMensual, type CuerpoAgua, type NodoRed } from '../../../utils/cuerposAgua';
-import { GLIFO_ESTADO } from './TanquePresa';
+import { GLIFO_ESTADO } from '../../../utils/presaNiveles';
 
 const BW = 168, BH = 64, GAP_X = 58, PAD = 12, PAD_T = 34, PH = 22;
 /** Meses completos entre dos primeros-de-mes (AAAA-MM-01). */

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import type { Descarte } from '../utils/aqwpCalidad';
 import {
@@ -92,8 +92,9 @@ export function useAqwpCuenca({ conSerie = true, refrescoMs = 0 }: OpcionesCuenc
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [version, setVersion] = useState(0);
+    const hayDatos = useRef(false);
 
-    const recargar = useCallback(() => { setLoading(true); setError(null); setVersion(v => v + 1); }, []);
+    const recargar = useCallback(() => { hayDatos.current = false; setLoading(true); setError(null); setVersion(v => v + 1); }, []);
 
     // El portal publica una vez al día: un refresco lento basta para una pantalla de sala que queda abierta todo el día.
     useEffect(() => {
@@ -193,15 +194,18 @@ export function useAqwpCuenca({ conSerie = true, refrescoMs = 0 }: OpcionesCuenc
                 if (!vivo) return;
                 const limpio = limpiarAlmacenamiento(lecturas, ubicacionDeDataset, namoPorUbicacion);
                 const climatologia = conSerie && ultFecha ? await cargarClimatologia(diaDelAnio(ultFecha)) : null;
+                if (!vivo) return; // otra carga más nueva ya está en curso: esta respuesta no debe pisarla
                 setDatos({
                     estados, serie: serieLlenado(limpio.lecturas, ubicacionDeDataset, namoPorUbicacion), cruceCila, descartes: limpio.descartes, climatologia,
                     lluvia: resumenLluvia(lecturasLluvia, ubicacionDeLluvia),
                     lluviaSerie: lecturasLluvia.flatMap(l => { const u = ubicacionDeLluvia.get(l.datasetId); return u == null ? [] : [{ ubicacionId: u, fecha: l.fecha, valor: l.valor }]; }),
                     ultSyncEn: (syncRes.data?.[0] as { ult_sync_en?: string } | undefined)?.ult_sync_en ?? null,
                 });
+                hayDatos.current = true;
                 setError(null);
             } catch (e) {
-                if (vivo) setError((e as Error).message || 'Error desconocido');
+                // Un fallo del refresco silencioso no tira la vista: se conserva lo último cargado y se reintenta en el siguiente ciclo.
+                if (vivo && !hayDatos.current) setError((e as Error).message || 'Error desconocido');
             } finally {
                 if (vivo) setLoading(false);
             }

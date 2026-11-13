@@ -2,8 +2,8 @@ import { memo, useId } from 'react';
 import { formatearNumero } from '../../../utils/historicoPresas';
 import { alturaRelleno, posicionMuerto } from '../../../utils/cuencaViz';
 import type { PresaCuencaModelo } from '../../../utils/cuencaModelo';
+import { GLIFO_ESTADO } from '../../../utils/presaNiveles';
 
-export const GLIFO_ESTADO: Record<string, string> = { ok: '●', warn: '▲', crit: '■', sd: '◇' };
 const COLOR_ESTADO: Record<string, string> = { ok: 'var(--pr-ok)', warn: 'var(--pr-warn)', crit: 'var(--pr-crit)', sd: 'var(--pr-t3)' };
 
 /** Alto del tanque en px. El ancho lo decide la capacidad (∝ √NAMO, ver anchoTanque). */

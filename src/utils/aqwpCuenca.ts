@@ -13,6 +13,11 @@ import { filtrarAtipicos, type Descarte } from './aqwpCalidad';
 /** Orden de presentación: primero las del distrito (PRE-001/002), luego aguas arriba → abajo en la cuenca. */
 export const ORDEN_PRESAS_CUENCA = [536, 537, 541, 540, 526, 538, 539] as const;
 export const UBICACION_OJINAGA = 230;
+/** Presas del distrito en el portal AQUARIUS y su clave en SICA. */
+export const UBICACION_BOQUILLA = 536;
+export const UBICACION_MADERO = 537;
+export const PRESA_ID_BOQUILLA = 'PRE-001';
+export const PRESA_ID_MADERO = 'PRE-002';
 
 /** Paleta categórica (7 presas) legible sobre fondo oscuro; el rojo/verde se reservan al estado. */
 export const COLOR_PRESA_CUENCA: Record<number, string> = {

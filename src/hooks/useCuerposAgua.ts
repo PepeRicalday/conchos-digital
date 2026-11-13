@@ -96,12 +96,21 @@ export function useCuerposAgua() {
             };
             escenas.set(id, [...(escenas.get(id) ?? []), e]);
           }
-          await Promise.all([...escenas.entries()].map(async ([id, serie]) => {
-            const ultima = serie[serie.length - 1];
-            const { data, error: e } = await supabase.from('vaso_geometria_historico').select('contorno_geojson')
-              .eq('presa_id', id).eq('vigente', true).eq('fecha_escena', ultima.fecha).limit(1);
-            if (!e && data?.[0]) ultima.contorno = anillosDeGeojson(data[0].contorno_geojson);
-          }));
+          // Una sola consulta: se piden las filas de las fechas «última escena» y se casa cada una con su serie por (vaso, fecha).
+          // Dos vasos pueden compartir fecha de pasada, por eso el cruce exige también el vaso. Si falla, quedan sin contorno (no tira la vista).
+          const ultimas = new Map([...escenas.entries()].map(([id, serie]) => [id, serie[serie.length - 1]]));
+          if (ultimas.size) {
+            const { data, error: e } = await supabase.from('vaso_geometria_historico').select('presa_id, fecha_escena, contorno_geojson')
+              .eq('vigente', true).eq('es_referencia_historica', false)
+              .in('presa_id', [...ultimas.keys()]).in('fecha_escena', [...new Set([...ultimas.values()].map((u) => u.fecha))]);
+            if (!e) {
+              const ms = (f: unknown) => Date.parse(String(f));
+              for (const r of data ?? []) {
+                const u = ultimas.get(String(r.presa_id));
+                if (u && ms(r.fecha_escena) === ms(u.fecha)) u.contorno = anillosDeGeojson(r.contorno_geojson);
+              }
+            }
+          }
         } catch (e) {
           aviso = `No se pudieron leer las escenas satelitales: ${(e as Error).message}`;
           escenas.clear();

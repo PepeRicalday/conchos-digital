@@ -2,7 +2,7 @@ import { memo } from 'react';
 import { formatearNumero } from '../../../utils/historicoPresas';
 import { alturaRelleno } from '../../../utils/cuencaViz';
 import type { PresaCuencaModelo } from '../../../utils/cuencaModelo';
-import { GLIFO_ESTADO } from './TanquePresa';
+import { GLIFO_ESTADO } from '../../../utils/presaNiveles';
 
 interface Props {
     m: PresaCuencaModelo;

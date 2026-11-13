@@ -57,6 +57,19 @@ export function cambioEn(serie: PuntoSerie[], dias: number): { delta: number; pc
   return { delta, pct: mejor.v !== 0 ? (delta / mejor.v) * 100 : null, base: mejor };
 }
 
+/**
+ * Ancla la serie al valor que se muestra hoy: si el total vigente (que puede incluir la captura de campo del día) es más reciente
+ * que el último punto, se agrega; si es del mismo día, lo sustituye. Así el «cambio en N días» parte de la MISMA cifra del indicador.
+ * Un total nulo o con fecha anterior a la serie no la toca.
+ */
+export function anclarSerie(serie: PuntoSerie[], hoy: { fecha: string | null; v: number | null }): PuntoSerie[] {
+  if (hoy.fecha == null || hoy.v == null || !Number.isFinite(hoy.v)) return serie;
+  if (!serie.length) return [{ fecha: hoy.fecha, v: hoy.v }];
+  const ult = serie[serie.length - 1];
+  if (hoy.fecha < ult.fecha) return serie;
+  return hoy.fecha === ult.fecha ? [...serie.slice(0, -1), { fecha: hoy.fecha, v: hoy.v }] : [...serie, { fecha: hoy.fecha, v: hoy.v }];
+}
+
 export const ultimos = (serie: PuntoSerie[], dias: number): PuntoSerie[] => {
   if (!serie.length) return [];
   const fin = serie[serie.length - 1].fecha;
@@ -65,7 +78,7 @@ export const ultimos = (serie: PuntoSerie[], dias: number): PuntoSerie[] => {
 
 // ── Periodos ────────────────────────────────────────────────────────────────────────────────────────────────────────
 export type PeriodoCuenca = 'ciclo' | 'cicloAnt' | '12m' | '24m' | 'todo';
-export interface RangoPeriodo { clave: PeriodoCuenca; etiqueta: string; /** Primer mes (AAAA-MM-01), inclusive. */ desde: string; /** Último mes (AAAA-MM-01), inclusive. */ hasta: string }
+export interface RangoPeriodo { clave: PeriodoCuenca; etiqueta: string; /** Primer mes (AAAA-MM-01), inclusive. */ desde: string; /** Último mes (AAAA-MM-01), inclusive. */ hasta: string; /** El ciclo agrícola que todavía no termina: su resultado es parcial. */ enCurso?: boolean }
 
 const mesDe = (anio: number, mes1: number) => `${anio}-${String(mes1).padStart(2, '0')}-01`;
 function sumarMeses(mes: string, n: number): string {
@@ -76,13 +89,26 @@ function sumarMeses(mes: string, n: number): string {
 /** Año en que EMPIEZA el ciclo agrícola (1-oct → 30-sep) que contiene `hoyISO`. */
 export const anioInicioCiclo = (hoyISO: string): number => Number(hoyISO.slice(0, 4)) - (Number(hoyISO.slice(5, 7)) >= 10 ? 0 : 1);
 
-/** Periodos del balance. El ciclo agrícola va del 1 de octubre al 30 de septiembre. `hasta` nunca pasa del mes en curso. */
+/** Meses mínimos transcurridos para que el ciclo en curso sea el periodo que se abre por defecto (con menos, casi no hay cierres). */
+export const MESES_MIN_CICLO_EN_CURSO = 3;
+
+/** Periodo con el que abre el balance: el ciclo en curso solo si ya lleva al menos 3 meses; si no, el ciclo anterior. */
+export function periodoInicial(hoyISO: string): PeriodoCuenca {
+  const transcurridos = (Number(hoyISO.slice(5, 7)) - 10 + 12) % 12 + 1; // octubre = 1
+  return transcurridos >= MESES_MIN_CICLO_EN_CURSO ? 'ciclo' : 'cicloAnt';
+}
+
+/**
+ * Periodos del balance. El ciclo agrícola va del 1 de octubre al 30 de septiembre. `hasta` nunca pasa del mes en curso.
+ * El orden es el de la botonera: va primero el ciclo que ya da resultado (el anterior mientras el actual lleva menos de 3 meses).
+ */
 export function rangosPeriodo(hoyISO: string, primerMes = '2021-01-01'): RangoPeriodo[] {
   const mesHoy = `${hoyISO.slice(0, 7)}-01`, a = anioInicioCiclo(hoyISO);
   const tope = (m: string) => (m > mesHoy ? mesHoy : m);
+  const ciclo: RangoPeriodo = { clave: 'ciclo', etiqueta: `Ciclo ${a}-${a + 1}`, desde: mesDe(a, 10), hasta: tope(mesDe(a + 1, 9)), enCurso: true };
+  const cicloAnt: RangoPeriodo = { clave: 'cicloAnt', etiqueta: `Ciclo ${a - 1}-${a}`, desde: mesDe(a - 1, 10), hasta: mesDe(a, 9) };
   return [
-    { clave: 'ciclo', etiqueta: `Ciclo ${a}-${a + 1}`, desde: mesDe(a, 10), hasta: tope(mesDe(a + 1, 9)) },
-    { clave: 'cicloAnt', etiqueta: `Ciclo ${a - 1}-${a}`, desde: mesDe(a - 1, 10), hasta: mesDe(a, 9) },
+    ...(periodoInicial(hoyISO) === 'ciclo' ? [ciclo, cicloAnt] : [cicloAnt, ciclo]),
     { clave: '12m', etiqueta: '12 meses', desde: sumarMeses(mesHoy, -12), hasta: sumarMeses(mesHoy, -1) },
     { clave: '24m', etiqueta: '24 meses', desde: sumarMeses(mesHoy, -24), hasta: sumarMeses(mesHoy, -1) },
     { clave: 'todo', etiqueta: 'Desde 2021', desde: primerMes, hasta: mesHoy },
@@ -248,7 +274,8 @@ const sig = (v: number, d = 1) => `${v > 0 ? '+' : v < 0 ? '−' : ''}${n1(Math.
 
 export interface PresaLectura { etiqueta: string; pct: number | null; cambio30Puntos: number | null; percentil: number | null; sinActualizar: boolean; atrasoDias: number | null }
 
-export function lecturasPresas(presas: PresaLectura[]): Lectura[] {
+/** `nAnios` = años de historia de la posición (sale del modelo); sin él no se afirma cuántos son. */
+export function lecturasPresas(presas: PresaLectura[], nAnios: number | null = null): Lectura[] {
   const out: Lectura[] = [];
   const con = presas.filter((p) => p.pct != null);
   if (!con.length) return [{ tono: 'info', titulo: 'Sin lectura vigente', texto: 'Ninguna presa tiene almacenamiento reportado (S/D).' }];
@@ -268,7 +295,7 @@ export function lecturasPresas(presas: PresaLectura[]): Lectura[] {
     const bajoP25 = pos.filter((p) => (p.percentil as number) <= 25);
     out.push({
       tono: bajoP25.length > pos.length / 2 ? 'warn' : 'info', titulo: 'Frente a su historia',
-      texto: `${bajoP25.length} de ${pos.length} presas están en el cuarto más bajo de lo registrado para este día del año${bajoP25.length ? ` (${bajoP25.map((p) => p.etiqueta).join(', ')})` : ''}. Historia de 9 años: orientación, no probabilidad.`,
+      texto: `${bajoP25.length} de ${pos.length} presas están en el cuarto más bajo de lo registrado para este día del año${bajoP25.length ? ` (${bajoP25.map((p) => p.etiqueta).join(', ')})` : ''}. ${nAnios != null && nAnios > 0 ? `Historia de ${nAnios} años` : 'Historia corta'}: orientación, no probabilidad.`,
     });
   }
   const dud = presas.filter((p) => p.sinActualizar || (p.atrasoDias ?? 0) > 2);

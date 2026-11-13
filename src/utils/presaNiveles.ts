@@ -14,6 +14,8 @@ export const UMBRAL_BAJO_PCT = 40;
 
 export type ClaveEstado = 'sd' | 'crit' | 'warn' | 'ok';
 export interface EstadoEmbalse { clave: ClaveEstado; etiqueta: string }
+/** Glifo que acompaña al color del estado (el color nunca es el único canal). */
+export const GLIFO_ESTADO: Record<string, string> = { ok: '●', warn: '▲', crit: '■', sd: '◇' };
 
 export function estadoEmbalse(pct: number | null | undefined): EstadoEmbalse {
     if (pct == null || !Number.isFinite(pct)) return { clave: 'sd', etiqueta: 'S/D' };

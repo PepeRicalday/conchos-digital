@@ -1,0 +1,67 @@
+import { describe, expect, it } from 'vitest';
+import { anclarSerie, cambioEn, lecturasPresas, periodoInicial, rangosPeriodo, type PuntoSerie } from './cuencaAnalisis';
+
+const serie: PuntoSerie[] = [
+  { fecha: '2026-10-13', v: 1000 },
+  { fecha: '2026-11-11', v: 1180 },
+];
+
+describe('anclarSerie: el cambio parte de la cifra que se muestra', () => {
+  it('agrega el total de hoy cuando es más reciente que la serie', () => {
+    const s = anclarSerie(serie, { fecha: '2026-11-13', v: 1194 });
+    expect(s).toHaveLength(3);
+    expect(s[2]).toEqual({ fecha: '2026-11-13', v: 1194 });
+    // 1194 (indicador) − 1000 (hace 31 días) = +194, no los +180 de la serie sin anclar
+    expect(cambioEn(s, 30)?.delta).toBeCloseTo(194, 6);
+    expect(cambioEn(serie, 30)?.delta).toBeCloseTo(180, 6);
+  });
+  it('sustituye el último punto si es del mismo día', () => {
+    const s = anclarSerie(serie, { fecha: '2026-11-11', v: 1190 });
+    expect(s).toHaveLength(2);
+    expect(s[1].v).toBe(1190);
+  });
+  it('no toca la serie con total nulo, sin fecha o más viejo que el último punto', () => {
+    expect(anclarSerie(serie, { fecha: '2026-11-13', v: null })).toBe(serie);
+    expect(anclarSerie(serie, { fecha: null, v: 1194 })).toBe(serie);
+    expect(anclarSerie(serie, { fecha: '2026-11-01', v: 1194 })).toBe(serie);
+  });
+  it('no modifica la serie original', () => {
+    anclarSerie(serie, { fecha: '2026-11-13', v: 1194 });
+    expect(serie).toHaveLength(2);
+  });
+});
+
+describe('periodo con el que abre el balance', () => {
+  it('con menos de 3 meses de ciclo abre el ciclo anterior y lo pone primero', () => {
+    expect(periodoInicial('2026-10-05')).toBe('cicloAnt');
+    expect(periodoInicial('2026-11-13')).toBe('cicloAnt');
+    const r = rangosPeriodo('2026-11-13');
+    expect(r[0]).toMatchObject({ clave: 'cicloAnt', etiqueta: 'Ciclo 2025-2026', desde: '2025-10-01', hasta: '2026-09-01' });
+    expect(r[0].enCurso).toBeUndefined();
+    expect(r[1]).toMatchObject({ clave: 'ciclo', etiqueta: 'Ciclo 2026-2027', desde: '2026-10-01', hasta: '2026-11-01', enCurso: true });
+  });
+  it('desde diciembre abre el ciclo en curso y lo pone primero', () => {
+    expect(periodoInicial('2026-12-01')).toBe('ciclo');
+    expect(periodoInicial('2027-06-15')).toBe('ciclo');
+    expect(periodoInicial('2027-09-30')).toBe('ciclo');
+    const r = rangosPeriodo('2027-06-15');
+    expect(r[0]).toMatchObject({ clave: 'ciclo', etiqueta: 'Ciclo 2026-2027', hasta: '2027-06-01', enCurso: true });
+    expect(r[1].clave).toBe('cicloAnt');
+  });
+  it('conserva los cinco periodos', () => {
+    expect(rangosPeriodo('2026-11-13').map((x) => x.clave).sort()).toEqual(['12m', '24m', 'ciclo', 'cicloAnt', 'todo']);
+  });
+});
+
+describe('lecturasPresas: años de historia sin número fijo', () => {
+  const presas = [{ etiqueta: 'La Boquilla', pct: 29.2, cambio30Puntos: 5, percentil: 20, sinActualizar: false, atrasoDias: 0 }];
+  it('dice los años que recibe', () => {
+    const t = lecturasPresas(presas, 10).find((l) => l.titulo === 'Frente a su historia')?.texto;
+    expect(t).toMatch(/Historia de 10 años/);
+  });
+  it('sin el dato no inventa un número', () => {
+    const t = lecturasPresas(presas).find((l) => l.titulo === 'Frente a su historia')?.texto;
+    expect(t).toMatch(/Historia corta/);
+    expect(t).not.toMatch(/\d+ años/);
+  });
+});

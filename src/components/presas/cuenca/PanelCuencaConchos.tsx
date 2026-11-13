@@ -5,7 +5,7 @@ import { fmtLluvia } from '../../../utils/fmtLluvia';
 import { useAqwpCuenca } from '../../../hooks/useAqwpCuenca';
 import { formatearNumero } from '../../../utils/historicoPresas';
 import { calcularFrescura } from '../../../utils/presaMetrics';
-import { agregadoCuenca, aportacionTotal, restarDias, ORDEN_PRESAS_CUENCA, UBICACION_OJINAGA } from '../../../utils/aqwpCuenca';
+import { agregadoCuenca, aportacionTotal, restarDias, ORDEN_PRESAS_CUENCA, UBICACION_BOQUILLA, UBICACION_MADERO, UBICACION_OJINAGA } from '../../../utils/aqwpCuenca';
 import { construirModeloCuenca, type PresaCuencaModelo } from '../../../utils/cuencaModelo';
 import { ordenarPresas, type OrdenCuenca } from '../../../utils/cuencaViz';
 import { fechaCorta } from '../../../utils/analiticaPresas';
@@ -22,7 +22,7 @@ import { useJcasCuenca } from '../../../hooks/useJcasCuenca';
 import { useUnifrutCuenca } from '../../../hooks/useUnifrutCuenca';
 import { useCapasCuenca } from '../../../hooks/useCapasCuenca';
 import SemaforoBadge from './SemaforoBadge';
-import { GLIFO_ESTADO } from './TanquePresa';
+import { GLIFO_ESTADO } from '../../../utils/presaNiveles';
 import { useCuerposAgua } from '../../../hooks/useCuerposAgua';
 import { etiquetaMes, ultimoCierreConDato } from '../../../utils/cuerposAgua';
 import SistemaCuenca from './SistemaCuenca';
@@ -36,9 +36,9 @@ import { useDerivacionK0 } from '../../../hooks/useDerivacionK0';
 import HidrometriaCuenca from './HidrometriaCuenca';
 import LecturaCuenca from './LecturaCuenca';
 import { useSalidaCuenca } from '../../../hooks/useSalidaCuenca';
-import { gastoMedio, useHidrometriaCuenca } from '../../../hooks/useHidrometriaCuenca';
+import { ID_BOCA_DEL_RIO, ID_VIRGENES, gastoMedio, useHidrometriaCuenca } from '../../../hooks/useHidrometriaCuenca';
 import { VENTANAS, ID_OJINAGA_IBWC, ID_OJINAGA_SUTRON, type VentanaHidro } from '../../../utils/hidroEstaciones';
-import { cambioEn, lecturasPresas, lecturasRed, lecturasVasos, salidaCuenca, serieAlmacenamiento, lecturasCierres, type Lectura } from '../../../utils/cuencaAnalisis';
+import { anclarSerie, cambioEn, lecturasPresas, lecturasRed, lecturasVasos, salidaCuenca, serieAlmacenamiento, lecturasCierres, type Lectura } from '../../../utils/cuencaAnalisis';
 import type { VasoHoy } from './EsquemaRedCuenca';
 import '../analitica/analitica.css';
 import './cuenca.css';
@@ -137,15 +137,15 @@ function columnasPresas(cila: Map<string, number | null | undefined>): Columna<P
 }
 
 /**
- * Vista "Cuenca del Conchos" (Presas → Analítica, Monitor): las 7 presas CONAGUA de Chihuahua y Durango y el aforo de Ojinaga,
- * del portal USIBWC. CONTEXTO de solo lectura: no sustituye la captura de campo ni CILA, ni entra a balance ni proyección.
+ * Vista "Cuenca del Conchos" (Presas → Analítica, Monitor): los cuerpos de agua de la cuenca (presas CONAGUA de Chihuahua y Durango),
+ * la red hidrométrica, la lluvia, el espejo por satélite, los cierres y el balance, y la salida por Ojinaga. Solo lectura: no sustituye
+ * la captura de campo ni CILA, ni alimenta el balance ni la proyección propios de cada presa del distrito.
  * Todo sale de construirModeloCuenca: el informe institucional usa el MISMO modelo, así las cifras nunca divergen.
  */
 export default function PanelCuencaConchos({ conInforme = false }: { conInforme?: boolean }) {
     const { datos, loading, error, recargar } = useAqwpCuenca();
     const capas = useCapasCuenca(); // las mismas capas de referencia en los planos y en el mapa de la red
     const jcas = useJcasCuenca(); // una sola carga de la red JCAS para los planos y la tabla de estaciones
-    const unifrut = useUnifrutCuenca(); // red regional Unifrut (fuera del contorno): tabla y mapa; nunca entra al promedio de la cuenca
     // Catálogo de cuerpos de agua + cierres mensuales + balance + vasos: carga aparte, un fallo aquí no tira el resto de la vista.
     const cuerpos = useCuerposAgua();
     const [vista, setVista] = useState<Vista>('tanques');
@@ -159,6 +159,9 @@ export default function PanelCuencaConchos({ conInforme = false }: { conInforme?
     const [pestana, setPestanaEstado] = useState<Pestana>(pestanaInicial);
     const setPestana = (p: Pestana) => { setPestanaEstado(p); try { localStorage.setItem(CLAVE_PESTANA, p); } catch { /* sin almacenamiento */ } window.scrollTo?.({ top: 0 }); };
     const [ventHidro, setVentHidro] = useState<VentanaHidro>('7d');
+    // Red regional Unifrut (fuera del contorno): tabla y mapa de «Clima y lluvia»; nunca entra al promedio de la cuenca.
+    // Solo se pide al abrir esa pestaña (una vez cargada se conserva).
+    const unifrut = useUnifrutCuenca(60 * 60_000, { activo: pestana === 'clima' });
     const salida = useSalidaCuenca();
     const derivacionK0 = useDerivacionK0(pestana === 'historico'); // la toma K-0 solo se pide al abrir «Cierres y balance»
     const hidro = useHidrometriaCuenca(ventHidro, pestana === 'red' || pestana === 'resumen');
@@ -171,7 +174,7 @@ export default function PanelCuencaConchos({ conInforme = false }: { conInforme?
         const fechas = filas.map((f) => f.fecha).filter((x): x is string => !!x).sort();
         const ultimaFecha = fechas.length ? fechas[fechas.length - 1] : null;
         return {
-            modelos, filas,
+            modelos, filas, ultimaFecha,
             ojinaga: datos.estados.find((e) => e.ubicacionId === UBICACION_OJINAGA) ?? null,
             cuenca: agregadoCuenca(filas),
             dist: agregadoCuenca(filas.filter((f) => f.delDistrito)),
@@ -223,19 +226,22 @@ export default function PanelCuencaConchos({ conInforme = false }: { conInforme?
 
     const { filas, ojinaga, cuenca, dist, aport, frescura } = calc;
     const sinActualizar = filas.filter((f) => f.sinActualizar);
-    const boquilla = filas.find((f) => f.ubicacionId === 536);
-    const madero = filas.find((f) => f.ubicacionId === 537);
+    const boquilla = filas.find((f) => f.ubicacionId === UBICACION_BOQUILLA);
+    const madero = filas.find((f) => f.ubicacionId === UBICACION_MADERO);
+    // Años de historia de la posición (el mayor entre las presas): las notas lo dicen con el número real, no con uno fijo.
+    const nAniosHist = calc.modelos.reduce((n, m) => Math.max(n, m.posicion?.nAnios ?? 0), 0) || null;
     const actual = visibles.find((m) => m.fila.ubicacionId === sel) ?? visibles[0] ?? null;
     const seleccionId = actual?.fila.ubicacionId ?? null;
     const hayClim = datos.climatologia != null;
     const areal30 = jcas.red?.modelo ? arealDe(jcas.red.modelo, ventanaObs) : null; // sigue la ventana elegida (la misma de planos y red)
     const hoyISO = hoyLocalISO();
-    const cambio30 = cambioEn(serieTotal, 30);
+    // El cambio parte de la MISMA cifra del indicador (que puede traer la captura de campo de hoy), no del último punto de AQUARIUS.
+    const cambio30 = cambioEn(cuenca.presasConDato === cuenca.presasTotal ? anclarSerie(serieTotal, { fecha: calc.ultimaFecha, v: cuenca.totalMm3 }) : serieTotal, 30);
     const sal30 = salida.lecturas ? salidaCuenca(salida.lecturas, restarDias(hoyISO, 29), hoyISO, hoyISO) : null;
     const signo = (v: number, d = 1) => `${v > 0 ? '+' : v < 0 ? '−' : ''}${formatearNumero(Math.abs(v), d)}`;
 
     // Lecturas por pestaña (hallazgos en una frase).
-    const lecPresas = lecturasPresas(calc.modelos.map((m) => ({ etiqueta: m.fila.etiqueta, pct: m.fila.pct, cambio30Puntos: m.cambio30Puntos, percentil: m.posicion?.percentil ?? null, sinActualizar: m.fila.sinActualizar, atrasoDias: m.atrasoDias })));
+    const lecPresas = lecturasPresas(calc.modelos.map((m) => ({ etiqueta: m.fila.etiqueta, pct: m.fila.pct, cambio30Puntos: m.cambio30Puntos, percentil: m.posicion?.percentil ?? null, sinActualizar: m.fila.sinActualizar, atrasoDias: m.atrasoDias })), nAniosHist);
     const itemsVasos = cuerpos.datos ? cuerpos.datos.cuerpos.map((c) => {
         const ser = (cuerpos.datos as NonNullable<typeof cuerpos.datos>).escenas.get(c.idSerie) ?? [];
         const conArea = ser.filter((e) => e.areaKm2 != null);
@@ -250,7 +256,7 @@ export default function PanelCuencaConchos({ conInforme = false }: { conInforme?
     // Red: coherencia de las estaciones hidrométricas contra la aportación publicada.
     const porId = new Map(hidro.estaciones.map((e) => [e.est.id, e]));
     const ibwc = gastoMedio(porId.get(ID_OJINAGA_IBWC)?.stat ?? null), sutron = gastoMedio(porId.get(ID_OJINAGA_SUTRON)?.stat ?? null);
-    const cruces = [{ id: 'C63009B2', presa: 'La Boquilla', fila: boquilla }, { id: 'C6301AC4', presa: 'F. I. Madero', fila: madero }].flatMap((c) => {
+    const cruces = [{ id: ID_BOCA_DEL_RIO, presa: 'La Boquilla', fila: boquilla }, { id: ID_VIRGENES, presa: 'F. I. Madero', fila: madero }].flatMap((c) => {
         const e = porId.get(c.id);
         return e && c.fila ? [{ estacion: e.sitio.corto, presa: c.presa, medidoM3s: gastoMedio(e.stat), reportadoM3s: c.fila.aportacionM3s, fechaReportado: c.fila.fecha ? fechaCorta(c.fila.fecha) : null }] : [];
     });
@@ -307,7 +313,7 @@ export default function PanelCuencaConchos({ conInforme = false }: { conInforme?
             <header className="an-head">
                 <div>
                     <h3 className="an-titulo">Cuenca del Conchos</h3>
-                    <p className="an-sub">Presas CONAGUA de Chihuahua y Durango y aforo de Ojinaga · CONAGUA vía USIBWC · datos provisionales</p>
+                    <p className="an-sub">Vasos, ríos, lluvia y salida por Ojinaga · CONAGUA, CILA, red GOES, satélite y estaciones de clima · datos provisionales</p>
                 </div>
                 <div className="cu-head-acc">
                     <span className={`an-chip an-chip--${frescura == null ? 'sd' : frescura.stale ? 'warn' : 'ok'}`}>
@@ -436,17 +442,18 @@ export default function PanelCuencaConchos({ conInforme = false }: { conInforme?
             <details className="an-pie cu-notas">
                 <summary className="cu-notas-sum">Cómo se lee y qué límites tiene</summary>
                 <ul>
-                    <li><b>Fuente:</b> CONAGUA publica a diario y el portal de USIBWC lo reparte. SICA lo copia a tablas propias (última sincronización: {fechaHoraLocal(datos.ultSyncEn)}). Dato provisional sujeto a revisión; USIBWC no lo garantiza.</li>
-                    <li><b>Solo contexto:</b> no sustituye la captura de campo ni el reporte CILA, y no entra al balance ni a la proyección. Para Boquilla y Madero se muestra la diferencia contra CILA; una alerta se abre si pasa de 2 %.</li>
+                    <li><b>Fuente de las presas:</b> CONAGUA publica a diario y el portal de USIBWC lo reparte. SICA lo copia a tablas propias (última sincronización: {fechaHoraLocal(datos.ultSyncEn)}). Dato provisional sujeto a revisión; USIBWC no lo garantiza.</li>
+                    <li><b>Alcance:</b> es una vista de solo lectura de toda la cuenca. No sustituye la captura de campo ni el reporte CILA, y no alimenta el balance ni la proyección propios de cada presa del distrito. En La Boquilla y F. I. Madero manda la lectura oficial de SICA (captura de campo o CILA) cuando es igual o más reciente que la del portal; se muestra la diferencia contra CILA y una alerta se abre si pasa de 2 %.</li>
+                    <li><b>Balance de la cuenca:</b> sale de los cierres mensuales y de los flujos diarios que publica CONAGUA. No es un balance cerrado: sus límites están en «Cierres y balance».</li>
                     <li><b>NAMO de CONAGUA:</b> el porcentaje usa el NAMO del portal, que puede diferir del que usa SICA en la pestaña Vaso operativo (Boquilla: 2,846.78 Mm³ en el portal), por eso los porcentajes pueden no coincidir exactamente.</li>
                     <li><b>San Gabriel, Dgo.:</b> la presa San Gabriel (también "Federalismo Mexicano") está en Ocampo, Durango, sobre el Río Florido, y alimenta a Pico del Águila. El nombre del portal no trae el estado; la ficha proviene de fuentes secundarias (Wikipedia, IBWC, Congreso de Chihuahua) y debe contrastarse con CONAGUA.</li>
                     <li><b>Semáforo combinado:</b> el nivel es el peor entre el volumen útil (&lt; 10 % crítico, &lt; 25 % bajo) y la posición histórica (percentil ≤ 10 crítico, ≤ 25 bajo, solo con ≥ 8 años); un descenso con extracción activa lo baja un nivel. Convive con el estado por umbrales fijos 20/40 %, que no se reemplaza.</li>
-                    <li><b>Posición histórica:</b> {hayClim ? 'compara con el mismo día del año (±3 días) de 2017 al último año completo, en Mm³ (el NAMO de CONAGUA cambió con los años). Son 9 años, y las observaciones de un mismo año están correlacionadas: el percentil tiene una resolución de unos 11 puntos. No es una probabilidad de excedencia ni un periodo de retorno.' : 'no hay climatología disponible en este momento; se muestra el rango de los últimos 12 meses de cada presa, que no es un histórico.'}</li>
+                    <li><b>Posición histórica:</b> {hayClim ? `compara con el mismo día del año (±3 días) de 2017 al último año completo, en Mm³ (el NAMO de CONAGUA cambió con los años). ${nAniosHist ? `Son ${nAniosHist} años, y las observaciones de un mismo año están correlacionadas: el percentil tiene una resolución de unos ${Math.round(100 / nAniosHist)} puntos.` : 'Son pocos años y las observaciones de un mismo año están correlacionadas.'} No es una probabilidad de excedencia ni un periodo de retorno.` : 'no hay climatología disponible en este momento; se muestra el rango de los últimos 12 meses de cada presa, que no es un histórico.'}</li>
                     <li><b>Lecturas atípicas:</b> se excluyen de las estadísticas los picos de un solo día y la fila corrupta del 08-sep-2020; el dato original se conserva en la base y la ficha de cada presa lo indica.</li>
                     <li><b>Lectura sin actualizar:</b> mismo valor 21 días o más con aportación o extracción activas (≥ 0.05 m³/s). CONAGUA actualiza algunas presas por tramos de 8 a 16 días (Madero) y esas no se marcan. Es un criterio de SICA, no un dictamen. El último dato se sigue mostrando, con la marca y desde cuándo, y no se calcula tendencia.</li>
-                    <li><b>Ojinaga:</b> el gasto es el diario del aforo USIBWC 08373000; el sensor Sutron del mismo sitio reporta cifras muy distintas (ver Estaciones GOES).</li>
-                    <li><b>Lluvia GOES:</b> el portal publica el acumulado del pluviómetro cada 10–15 minutos, con ruido y reinicios. SICA suma solo los incrementos positivos para obtener mm por día; un día con menos de 18 horas con muestra queda S/D. Solo hay dos ciclos con datos: se compara con el ciclo anterior (n = 1) y nunca se dice qué es lo normal.</li>
-                    <li><b>Nivel GOES de Luis L. León:</b> no se usa. La telemetría está congelada (1,025.43 msnm de mayo a septiembre y 1,018.78 msnm desde fines de septiembre) y su almacenamiento no coincide con el diario de CONAGUA. Babisas, Peguis y Boca del Río ya no transmiten en el portal.</li>
+                    <li><b>Ojinaga:</b> el gasto es el diario del aforo USIBWC 08373000; el sensor Sutron del mismo sitio reporta cifras muy distintas (ver «Red y estaciones»).</li>
+                    <li><b>Pluviómetros del portal (Villalba, Luis L. León):</b> el portal publica el acumulado del pluviómetro cada 10–15 minutos, con ruido y reinicios. SICA suma solo los incrementos positivos para obtener mm por día; un día con menos de 18 horas con muestra queda S/D. Solo hay dos ciclos con datos: se compara con el ciclo anterior (n = 1) y nunca se dice qué es lo normal.</li>
+                    <li><b>Nivel GOES de Luis L. León:</b> no se usa. La telemetría está congelada (1,025.43 msnm de mayo a septiembre y 1,018.78 msnm desde fines de septiembre) y su almacenamiento no coincide con el diario de CONAGUA. El gasto de Boca del Río, Vírgenes y Babisas no sale de ese portal: llega por la red GOES directa (ver «Red y estaciones»).</li>
                     <li>Las fechas son el día del sello del portal, que usa UTC−6 fijo.</li>
                 </ul>
             </details>

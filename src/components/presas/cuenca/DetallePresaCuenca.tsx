@@ -2,7 +2,7 @@ import { formatearNumero } from '../../../utils/historicoPresas';
 import { fechaCorta } from '../../../utils/analiticaPresas';
 import type { PresaCuencaModelo } from '../../../utils/cuencaModelo';
 import SemaforoBadge from './SemaforoBadge';
-import { GLIFO_ESTADO } from './TanquePresa';
+import { GLIFO_ESTADO } from '../../../utils/presaNiveles';
 
 const fmt = (v: number | null, d = 1) => (v == null ? 'S/D' : formatearNumero(v, d));
 const fmtFlujo = (v: number | null) => (v == null ? 'S/D' : formatearNumero(v, v !== 0 && Math.abs(v) < 1 ? 3 : 2));

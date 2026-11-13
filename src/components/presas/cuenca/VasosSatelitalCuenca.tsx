@@ -63,7 +63,7 @@ type Orden = 'red' | 'reciente' | 'area';
  * Vasos por satélite. Cada tarjeta dibuja la HUELLA máxima del vaso (polígono KMZ: nivel de diseño) y el ESPEJO de la última escena
  * Sentinel-2 sin nubes (NDWI a 10 m), dice qué tan vieja es esa escena y muestra su evolución en el periodo elegido. Junto al dato
  * satelital va la lectura de almacenamiento del día (telemetría), porque el satélite no pasa a diario. Sin medición no se inventa un
- * área. El volumen satelital es S/D mientras el cuerpo no tenga curva elevación–área–capacidad.
+ * área. El volumen satelital no se muestra en esta vista (solo Boquilla y Madero tienen curva elevación–área–capacidad).
  */
 export default function VasosSatelitalCuenca({ datos, aviso, hoyISO, hoy }: { datos: DatosCuerposAgua; aviso: string | null; hoyISO: string; hoy?: Map<string, VasoHoy> }) {
   const [periodo, setPeriodo] = useState<PeriodoVaso>(12);
@@ -168,7 +168,7 @@ export default function VasosSatelitalCuenca({ datos, aviso, hoyISO, hoy }: { da
       </div>
       <p className="an-nota cu-bal-pie">
         <b>Por qué no hay dato satelital de hoy:</b> Sentinel-2 pasa sobre cada vaso cada {REVISITA_SENTINEL_DIAS} días y la medición necesita una pasada con 3 % de nubes o menos sobre el vaso; con cielo nublado el dato se queda en la última pasada limpia.
-        El dato de hoy es el almacenamiento de telemetría que acompaña a cada tarjeta. El volumen por satélite es S/D: ningún vaso tiene todavía curva elevación–área–capacidad cargada para convertir el espejo en volumen. El punto hueco de la serie marca una escena poco confiable.
+        El dato de hoy es el almacenamiento de telemetría que acompaña a cada tarjeta. El volumen por satélite no se muestra aquí: solo La Boquilla y F. I. Madero tienen curva elevación–área–capacidad; en los demás vasos es S/D hasta contar con una. El punto hueco de la serie marca una escena poco confiable.
       </p>
     </section>
   );

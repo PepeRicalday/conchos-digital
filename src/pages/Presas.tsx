@@ -657,8 +657,12 @@ const Presas = () => {
         ? 'Mantener extracciones según programa de distribución. Sin acción inmediata.'
         : 'Suspender extracciones no esenciales. Revisar balance hídrico con módulos.';
 
+    // La Cuenca del Conchos es de toda la cuenca, no de la presa elegida: se muestra a pantalla propia, sin la banda de la presa
+    // arriba ni sus paneles (red mayor, gestión, alertas) abajo. Así la cuenca queda en el primer pantallazo.
+    const soloCuenca = activeTab === 'analitica' && vistaAnalitica === 'cuenca';
+
     return (
-        <div className="scada-sala-root">
+        <div className={`scada-sala-root${soloCuenca ? ' is-solo-cuenca' : ''}`}>
 
             {/* ══ ZONA 1: HEADER EJECUTIVO ════════════════════════════════════ */}
             <header className="scada-sala-header">
@@ -704,6 +708,8 @@ const Presas = () => {
             </header>
 
             {/* ══ BANDA DE LECTURA: cifras clave con procedencia ═══════════════ */}
+            {!soloCuenca && (
+            <>
             <PresaLecturaBand
                 key={currentDam.id}
                 presa={currentDam}
@@ -717,6 +723,8 @@ const Presas = () => {
                 fechaISO={fechaSeleccionada}
                 almacenamientoHoyMm3={lect?.almacenamiento_mm3 ?? null}
             />
+            </>
+            )}
 
             {/* ══ ZONA 2+3: CUERPO PRINCIPAL ══════════════════════════════════ */}
             {/* ── ZONA 2+3 body ─────────────────────────────────────────────── */}
@@ -862,7 +870,7 @@ const Presas = () => {
             </div>
 
             {/* ── MÓDULO 4: FLUJOGRAMA SANKEY ───────────────────────────────── */}
-            <TrazabilidadRedMayorPanel
+            {!soloCuenca && <TrazabilidadRedMayorPanel
                 extraccionTotal={extraccionTotal}
                 desglose={{
                     tomaBaja: lect?.gasto_toma_baja_m3s ?? null,
@@ -870,10 +878,10 @@ const Presas = () => {
                     tomaIzq: lect?.gasto_toma_izq_m3s ?? null,
                     tomaDer: lect?.gasto_toma_der_m3s ?? null,
                 }}
-            />
+            />}
 
             {/* ── ZONA 4+5: FOOTER ──────────────────────────────────────────── */}
-            <div className="scada-sala-footer">
+            {!soloCuenca && <div className="scada-sala-footer">
                 {/* ZONA 4: Gestión y Balance Hidráulico */}
                 <div className="scada-zona-gestion">
                     <div className="scada-panel-hdr">
@@ -1007,7 +1015,7 @@ const Presas = () => {
                         })}
                     </div>
                 </div>
-            </div>
+            </div>}
 
 
             {/* Modal */}

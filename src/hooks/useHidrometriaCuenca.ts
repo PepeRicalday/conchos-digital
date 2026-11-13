@@ -24,6 +24,9 @@ export const SITIOS_RED: Record<string, SitioRed> = {
   [ID_OJINAGA_IBWC]: { corto: 'Ojinaga (USIBWC)', tramo: 'Río Conchos, salida de la cuenca', rol: 'salida', presaId: null, haciaTxt: 'Río Bravo', reserva: null },
   [ID_OJINAGA_SUTRON]: { corto: 'Ojinaga (Sutron)', tramo: 'Río Conchos, salida de la cuenca · mismo sitio', rol: 'salida', presaId: null, haciaTxt: 'Río Bravo', reserva: 'Su gasto no coincide con el aforo oficial USIBWC del mismo sitio: no se usa para la salida de la cuenca.' },
 };
+/** Estaciones GOES que miden la entrada a los vasos del distrito. */
+export const ID_BOCA_DEL_RIO = 'C63009B2';
+export const ID_VIRGENES = 'C6301AC4';
 /** Orden de aguas arriba a aguas abajo. */
 export const ORDEN_RED = ['C63009B2', 'C6301AC4', 'C6301416', ID_OJINAGA_IBWC, ID_OJINAGA_SUTRON];
 

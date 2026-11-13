@@ -80,7 +80,8 @@ export default function PlanosCuenca({ jcas, capas, diasObs: diasProp, onDias, u
 
     const descripcion = plano ? `${plano.titulo}. ${plano.motivoSD ? `Sin dato: ${plano.motivoSD}` : `Promedio ${plano.resumen.media == null ? 'S/D' : variable === 'lluvia' ? fmtLluvia(plano.resumen.media) : fmt(plano.resumen.media)} ${plano.unidad} con ${plano.resumen.n} estaciones`}` : '';
     // El SVG se muestra como imagen (data URL): no puede ejecutar nada aunque un nombre de estación trajera marcado.
-    const svg = useMemo(() => (plano && contorno ? planoSvg(plano, contorno, { tema: 'pantalla', textoPx: dev.esPhone ? 17 : 12, idPrefijo: 'pnl', descripcion, capas: capas && capas.ids.length ? { ids: capas.ids, datos: capas.datos } : undefined }) : ''), [plano, contorno, dev.esPhone, descripcion, capas?.ids, capas?.datos]);
+    const capaIds = capas?.ids, capaDatos = capas?.datos;
+    const svg = useMemo(() => (plano && contorno ? planoSvg(plano, contorno, { tema: 'pantalla', textoPx: dev.esPhone ? 17 : 12, idPrefijo: 'pnl', descripcion, capas: capaIds && capaDatos && capaIds.length ? { ids: capaIds, datos: capaDatos } : undefined }) : ''), [plano, contorno, dev.esPhone, descripcion, capaIds, capaDatos]);
 
     const confiab = useMemo(() => resumenConfiabilidad(pron.datos?.verificacion ?? []), [pron.datos]);
     const filasPron = useMemo(() => {

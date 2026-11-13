@@ -43,15 +43,16 @@ export function useAnotacionesCuenca(activo: boolean) {
   const recargar = useCallback(() => setVersion((v) => v + 1), []);
 
   /** Guarda una anotación ya validada. Lanza con el mensaje de la base si se rechaza (permisos, restricciones). */
-  const guardar = useCallback(async (fila: AnotacionNueva, autor: string | null) => {
-    const { error: e } = await supabase.from('cuerpos_agua_anotaciones').insert({ ...fila, creado_por_nombre: autor });
+  const guardar = useCallback(async (fila: AnotacionNueva) => {
+    // Autor, fecha y estado los fija el servidor (disparador), no el cliente.
+    const { error: e } = await supabase.from('cuerpos_agua_anotaciones').insert(fila);
     if (e) throw new Error(e.code === '42501' ? 'Su usuario no tiene permiso para anotar (solo SRL y ACU).' : e.message);
     setVersion((v) => v + 1);
   }, []);
 
   /** Anula (no borra) una anotación: queda en el historial, tachada. */
   const anular = useCallback(async (id: number) => {
-    const { data, error: e } = await supabase.from('cuerpos_agua_anotaciones').update({ anulada: true, anulada_en: new Date().toISOString() }).eq('id', id).select('id');
+    const { data, error: e } = await supabase.from('cuerpos_agua_anotaciones').update({ anulada: true }).eq('id', id).select('id');
     if (e) throw new Error(e.message);
     if (!data?.length) throw new Error('No se anuló: su usuario no tiene permiso sobre esta anotación.');
     setVersion((v) => v + 1);

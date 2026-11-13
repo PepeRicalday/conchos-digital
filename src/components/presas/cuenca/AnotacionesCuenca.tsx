@@ -52,7 +52,7 @@ export default function AnotacionesCuenca({ cuerpos, anot, hoyISO }: { cuerpos: 
     if (!r.fila) { setEstado({ tipo: 'error', txt: 'Revise los campos marcados.' }); return; }
     setGuardando(true);
     try {
-      await anot.guardar(r.fila, profile?.nombre ?? user?.email ?? null);
+      await anot.guardar(r.fila);
       setEstado({ tipo: 'ok', txt: `${ETIQUETA_TIPO[b.tipo]} guardada para ${nombre.get(b.cuerpoId) ?? b.cuerpoId}.` });
       setB((v) => ({ ...vacio(v.tipo), cuerpoId: v.cuerpoId }));
     } catch (err) { setEstado({ tipo: 'error', txt: `No se guardó: ${(err as Error).message}` }); }

@@ -26,6 +26,8 @@ import LecturaCuenca from './LecturaCuenca';
 import { useAnotacionesCuenca } from '../../../hooks/useAnotacionesCuenca';
 import { ultimaCaptura } from '../../../utils/anotacionesCuenca';
 import { useSalidaCuenca } from '../../../hooks/useSalidaCuenca';
+import { useTratadoCiclo } from '../../../hooks/useTratadoCiclo';
+import ResumenTratado from './ResumenTratado';
 import { ID_BOCA_DEL_RIO, ID_VIRGENES, gastoMedio, useHidrometriaCuenca } from '../../../hooks/useHidrometriaCuenca';
 import { VENTANAS, ID_OJINAGA_IBWC, ID_OJINAGA_SUTRON, type VentanaHidro } from '../../../utils/hidroEstaciones';
 import { anclarSerie, cambioEn, lecturasPresas, lecturasRed, lecturasVasos, salidaCuenca, serieAlmacenamiento, lecturasCierres, type Lectura } from '../../../utils/cuencaAnalisis';
@@ -45,6 +47,7 @@ const BalanceVaso = lazy(() => import('./BalanceVaso'));
 const BalanceTramosRio = lazy(() => import('./BalanceTramosRio'));
 const AnotacionesCuenca = lazy(() => import('./AnotacionesCuenca'));
 const SalidaCiclosCuenca = lazy(() => import('./SalidaCiclosCuenca'));
+const TratadoCuenca = lazy(() => import('./TratadoCuenca'));
 const FichaCuerpo = lazy(() => import('./FichaCuerpo'));
 const ComparadorCuenca = lazy(() => import('./ComparadorCuenca'));
 const cargando = <section className="an-card" role="status" aria-busy="true" aria-label="Cargando sección"><div className="an-skeleton an-skeleton--alta" /></section>;
@@ -68,9 +71,10 @@ const PESTANAS: { id: Pestana; t: string; ayuda: string }[] = [
     { id: 'clima', t: 'Clima', ayuda: 'Planos, estaciones y lluvia de la cuenca' },
 ];
 /** Sección que se abre al entrar a cada destino. Las pestañas de antes (Presas, Red, Vasos por satélite, Cierres) son hoy secciones. */
-type Seccion = 'presas' | 'satelite' | 'ficha' | 'comparador' | 'cuenca' | 'tramos' | 'ojinaga' | 'cierres' | 'mensualVaso' | 'red' | 'anotaciones' | 'planos' | 'estaciones' | 'mensual' | 'pluviometros';
-type Destino = 'presas' | 'vasos' | 'balance' | 'red' | 'clima';
+type Seccion = 'tratado' | 'presas' | 'satelite' | 'ficha' | 'comparador' | 'cuenca' | 'tramos' | 'ojinaga' | 'cierres' | 'mensualVaso' | 'red' | 'anotaciones' | 'planos' | 'estaciones' | 'mensual' | 'pluviometros';
+type Destino = 'tratado' | 'presas' | 'vasos' | 'balance' | 'red' | 'clima';
 const DESTINOS: Record<Destino, { pestana: Pestana; seccion: Seccion }> = {
+    tratado: { pestana: 'resumen', seccion: 'tratado' },
     presas: { pestana: 'vasos', seccion: 'presas' },
     vasos: { pestana: 'vasos', seccion: 'satelite' },
     balance: { pestana: 'balance', seccion: 'cuenca' },
@@ -79,7 +83,7 @@ const DESTINOS: Record<Destino, { pestana: Pestana; seccion: Seccion }> = {
 };
 // Al entrar se ve abierta la primera sección de cada pestaña; las demás muestran su título y una línea de resumen.
 const SECCIONES_INICIO: Record<Seccion, boolean> = {
-    presas: true, satelite: false, ficha: false, comparador: false, cuenca: true, tramos: false, ojinaga: false, cierres: false, mensualVaso: false, red: false, anotaciones: false,
+    tratado: false, presas: true, satelite: false, ficha: false, comparador: false, cuenca: true, tramos: false, ojinaga: false, cierres: false, mensualVaso: false, red: false, anotaciones: false,
     planos: true, estaciones: false, mensual: false, pluviometros: false,
 };
 const CLAVE_PESTANA = 'sica.cuenca.pestana';
@@ -135,6 +139,7 @@ export default function PanelCuencaConchos({ conInforme = false }: { conInforme?
     // Solo se pide al abrir esa pestaña (una vez cargada se conserva).
     const unifrut = useUnifrutCuenca(60 * 60_000, { activo: pestana === 'clima' });
     const salida = useSalidaCuenca();
+    const tratado = useTratadoCiclo(); // avance del Tratado de 1944 (caché compartida con el Dashboard)
     // Anotaciones (captura manual, cierres revisados): se piden donde se muestran, en Vasos (junto al vaso sin telemetría) y en Balance.
     const anot = useAnotacionesCuenca((pestana === 'vasos' && (abiertas.ficha || abiertas.presas)) || (pestana === 'balance' && abiertas.anotaciones));
     const derivacionK0 = useDerivacionK0(pestana === 'balance' && abiertas.tramos); // la toma K-0 solo se pide al abrir el balance por tramo
@@ -316,6 +321,15 @@ export default function PanelCuencaConchos({ conInforme = false }: { conInforme?
                 <>
                     {avisoSinActualizar}
                     <LecturaCuenca columnas titulo="Lo más importante hoy" lecturas={lecResumen} onIr={(d) => irA(d as Destino)} />
+                    <SeccionCuenca id="tratado" titulo="Tratado de Aguas de 1944 · avance del ciclo 2025-2030" abierta={abiertas.tratado} onAlternar={alternar}
+                        resumen={<ResumenTratado tratado={tratado} hoyISO={hoyISO} />}
+                        notas={<>
+                            <li><b>Cifra oficial:</b> el acumulado del compromiso es el corte semanal del IBWC (incluye «otras fuentes aceptadas»); las series diarias de los seis afluentes son provisionales, traen días sin dato y por eso suman menos.</li>
+                            <li><b>México:</b> el Sutron de Ojinaga mide muchas veces lo que el aforo oficial (curva sin calibrar): se muestra como brecha, no se corrige. La cifra oficial de CONAGUA/CILA se captura aquí abajo.</li>
+                            <li><b>Actualización:</b> sincronización automática con el IBWC tres veces al día; el corte oficial cambia cada semana.</li>
+                        </>}>
+                        <Suspense fallback={cargando}><TratadoCuenca tratado={tratado} hoyISO={hoyISO} /></Suspense>
+                    </SeccionCuenca>
                     {estadoCuerpos}
                     {sistema}
                     {cuerpos.datos && <BalanceCuenca compacto datos={cuerpos.datos} salida={salida.lecturas} hoyISO={hoyISO} onIr={() => irA('balance')} />}

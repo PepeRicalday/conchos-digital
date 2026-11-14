@@ -1,0 +1,23 @@
+/* Tratado de 1944 · avance del ciclo. Usa los tokens del tema (--pr-*) y deja los colores de series fijos (validados). */
+.tr-root { display: grid; gap: 14px; }
+.tr-lectura { font-size: 14px; color: var(--pr-t2); margin: 0; max-width: 78ch; }
+.tr-barra { display: grid; grid-template-columns: auto minmax(160px, 1fr) auto; gap: 10px; align-items: center; }
+.tr-barra-et { font: 600 12px var(--pr-body); color: var(--pr-t3); text-transform: uppercase; letter-spacing: 0.04em; }
+.tr-barra-val { font: 700 15px var(--pr-mono); color: var(--pr-t1); font-variant-numeric: tabular-nums; }
+.tr-barra-val small { font: 400 12px var(--pr-body); color: var(--pr-t3); margin-left: 6px; }
+.tr-delta { margin: 0; }
+.tr-graf svg { max-height: 360px; }
+.tr-leyenda { display: flex; flex-wrap: wrap; gap: 6px 16px; list-style: none; padding: 0; margin: 8px 0 4px; font-size: 13px; color: var(--pr-t2); }
+.tr-leyenda li { display: inline-flex; align-items: center; gap: 6px; }
+.tr-ley { display: inline-block; width: 26px; height: 0; border-top: 3px solid; }
+.tr-ley--oficial { border-color: var(--pr-t1); }
+.tr-ley--pub { border-color: #2fb99a; border-top-style: dotted; }
+.tr-ley--meta { border-color: #e05a4f; }
+.tr-ley--deuda { border-color: #5b9cf0; border-top-style: dashed; }
+.tr-sw { display: inline-block; width: 11px; height: 11px; border-radius: 3px; margin-right: 7px; vertical-align: -1px; }
+.tr-concl { margin: 8px 0 0; padding-left: 18px; font-size: 14px; color: var(--pr-t2); }
+.tr-sel { min-height: 40px; font: 14px var(--pr-body); color: var(--pr-t1); background: var(--pr-surface-2); border: 1px solid var(--pr-line); border-radius: 8px; padding: 6px 10px; }
+.tr-rango { display: flex; gap: 12px; flex-wrap: wrap; }
+.tr-rango label { display: grid; gap: 2px; }
+.tr-captura .cu-an-ver { display: inline-flex; gap: 8px; align-items: center; margin-top: 8px; font-size: 13px; color: var(--pr-t3); }
+html[data-device='phone'] .tr-barra { grid-template-columns: 1fr; }

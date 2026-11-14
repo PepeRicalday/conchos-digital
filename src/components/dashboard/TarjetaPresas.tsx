@@ -1,7 +1,11 @@
 import { memo, useCallback, useMemo, useState } from 'react';
-import { Waves, Droplets, Layers } from 'lucide-react';
+import { Waves, Droplets, Layers, Scale } from 'lucide-react';
 import { KpiTile } from './KpiTile';
 import { Sparkline } from '../ui/Sparkline';
+import { BarraSegmentada } from '../ui/BarraSegmentada';
+import { useTratadoCiclo } from '../../hooks/useTratadoCiclo';
+import { avanceCiclo, fmtAf } from '../../utils/tratadoCiclo';
+import { hoyLocalISO } from '../../utils/hoyLocal';
 import { ColumnasEmbalse, type ColumnaEmbalse } from '../ui/ColumnasEmbalse';
 import { SelectorChips } from '../ndvi/SelectorChips';
 import { estadoPresas } from '../../utils/dashboardKpisEjecutivos';
@@ -11,12 +15,12 @@ import { useJcasCuenca } from '../../hooks/useJcasCuenca';
 import { useUnifrutCuenca } from '../../hooks/useUnifrutCuenca';
 import { construirEstacionesClima, resumenPorRed, ROTULO_RED, type FuenteEstacion } from '../../utils/estacionesClima';
 
-export type VistaPresas = 'distrito' | 'cuenca';
+export type VistaPresas = 'distrito' | 'cuenca' | 'tratado';
 const CLAVE = 'sica.dashboard.presas.vista';
 
 /** Vista recordada por equipo (solo una comodidad: si el navegador bloquea el almacenamiento, vale 'distrito'). */
 function leerVista(): VistaPresas {
-    try { return window.localStorage.getItem(CLAVE) === 'cuenca' ? 'cuenca' : 'distrito'; } catch { return 'distrito'; }
+    try { const v = window.localStorage.getItem(CLAVE); return v === 'cuenca' || v === 'tratado' ? v : 'distrito'; } catch { return 'distrito'; }
 }
 
 const f = (v: number | null | undefined, d = 1) => (v == null ? null : v.toFixed(d));
@@ -37,6 +41,9 @@ export const TarjetaPresas = memo(function TarjetaPresas({ m }: { m: ModeloKpis 
     }, []);
 
     const { presas, cuenca } = m;
+    // Tratado de 1944: solo se pide al elegir esta vista (caché compartida con la pestaña Cuenca).
+    const tratado = useTratadoCiclo(vista === 'tratado');
+    const avTratado = useMemo(() => (tratado.datos ? avanceCiclo(tratado.datos.ciclo, tratado.datos.cortes) : null), [tratado.datos]);
     const r = cuenca?.r ?? null;
     // Lluvia areal de la red (hoy parcial y ayer): solo se pide al abrir la vista Cuenca. Se cargan 30 días porque la detección de pluviómetros
     // sospechosos (0 mm continuo con vecinas lloviendo) necesita esa ventana; con menos, el Dashboard y Red y estaciones podrían divergir.
@@ -58,8 +65,28 @@ export const TarjetaPresas = memo(function TarjetaPresas({ m }: { m: ModeloKpis 
             opciones={[
                 { valor: 'distrito', texto: 'Distrito', icono: <Waves size={16} aria-hidden="true" />, aria: 'Presas del distrito: Boquilla y Madero', title: 'Presas del distrito (Boquilla y Madero)' },
                 { valor: 'cuenca', texto: 'Cuenca', icono: <Layers size={16} aria-hidden="true" />, aria: `Presas de la cuenca del Conchos: ${r ? `${r.total} presas` : 'sin lectura'}`, title: 'Las 7 presas de la cuenca del Conchos (CONAGUA vía USIBWC)' },
+                { valor: 'tratado', texto: 'Tratado', icono: <Scale size={16} aria-hidden="true" />, aria: 'Avance del Tratado de 1944 en el ciclo 2025-2030', title: 'Avance de las entregas a EUA del Tratado de 1944 (IBWC)' },
             ]} />
     );
+
+    if (vista === 'tratado') {
+        const a = avTratado, ciclo = tratado.datos?.ciclo;
+        const estado = !a || a.estado === 'sd' ? { tipo: 'sd' as const, texto: 'Sin corte oficial' }
+            : a.estado === 'atrasado' ? { tipo: 'warn' as const, texto: 'Por debajo de la meta' } : { tipo: 'ok' as const, texto: a.estado === 'adelante' ? 'Por delante de la meta' : 'En la meta lineal' };
+        const meta = a?.metaLinealAf != null && ciclo ? (a.metaLinealAf / ciclo.compromisoAf) * 100 : null;
+        return (
+            <KpiTile id="kp-presas" to="/presas?tab=analitica&vista=cuenca" enlaceTexto="Abrir Tratado en Cuenca" titulo="Tratado 1944" icono={<Scale size={18} />} valor={f(a?.pctCompromiso)} unidad="%" estado={estado}
+                aria={`Tratado de 1944, ciclo 2025-2030: ${f(a?.pctCompromiso) ?? 'sin dato'} por ciento del compromiso entregado, ${estado.texto}. Abrir el avance del Tratado en Cuenca`}
+                acciones={selector}
+                viz={<div className="kp-presas-viz-col"><BarraSegmentada pct={a?.pctCompromiso ?? null} marcaPct={meta} etiqueta="Compromiso del ciclo entregado; la marca es la meta lineal" /></div>}
+                contexto={a && a.acumuladoAf != null && ciclo
+                    ? <><b>{fmtAf(a.acumuladoAf)} / {fmtAf(ciclo.compromisoAf)} AF</b> · {(a.acumuladoMm3 ?? 0).toFixed(0)} Mm³
+                        <span className="kp-sep"> · </span><span className="kp-nw">{a.difLinealAf != null ? `${a.difLinealAf >= 0 ? '+' : '−'}${fmtAf(Math.abs(a.difLinealAf))} AF vs meta lineal` : 'S/D'}</span>
+                        {a.deudaRemanenteAf != null && <><span className="kp-sep"> · </span><span className="kp-nw">deuda previa {fmtAf(a.deudaRemanenteAf)} AF</span></>}</>
+                    : <>{tratado.error ? 'No se pudo leer el avance del Tratado' : tratado.cargando ? 'Cargando avance del Tratado…' : 'Sin corte oficial del IBWC (S/D)'}</>}
+                fresco={a?.corte ? `Corte IBWC ${a.corte.fecha} · dato provisional` : 'Sin lectura (S/D)'} stale={a?.corte ? (Date.parse(hoyLocalISO()) - Date.parse(a.corte.fecha)) / 86_400_000 > 10 : false} />
+        );
+    }
 
     if (vista === 'cuenca') {
         const estado = estadoPresas(r?.pct);
